@@ -53,10 +53,11 @@ class MultiHeadAttention(nn.Module):
         # v: [batch_size, seq_len, input_dim]
         # out: [batch_size, seq_len, input_dim]
         batch_size = q.size(0)
+
         q = self.fc_q(q)
         k = self.fc_k(k)
-
         v = self.fc_v(v)
+
         q = q.view(batch_size, -1, self.num_heads, 64 // self.num_heads).transpose(1, 2)
         k = k.view(batch_size, -1, self.num_heads, 64 // self.num_heads).transpose(1, 2)
         v = v.view(batch_size, -1, self.num_heads, 64 // self.num_heads).transpose(1, 2)
