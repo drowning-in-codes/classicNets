@@ -64,7 +64,6 @@ class Attention(nn.Module):
         dots = einsum("b h i d, b h j d -> b h i j", q, k) * self.scale
 
         # shaw's relative positional embedding
-
         seq = torch.arange(n, device=device)
         dist = rearrange(seq, "i -> i ()") - rearrange(seq, "j -> () j")
         dist = dist.clamp(-max_pos_emb, max_pos_emb) + max_pos_emb
