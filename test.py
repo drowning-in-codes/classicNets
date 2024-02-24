@@ -386,9 +386,9 @@ class CoVisFormer(nn.Module):
             """
             patch_embed = simpleConvEmbed(
                 input_dim=num_patchs,
-                feature_size=(feature_height, feature_width)
-                if i == 0
-                else embed_dim[i - 1],
+                feature_size=(
+                    (feature_height, feature_width) if i == 0 else embed_dim[i - 1]
+                ),
                 patch_size=embed_dim[i],
             )
             dim = (
@@ -484,16 +484,6 @@ class CoVisFormer(nn.Module):
 
 
 if __name__ == "__main__":
-    c = torch.randn(4, 256, 200, 256).to(device)
-    model = CoVisFormer(
-        num_vehicles=2,
-        feature_width=200,
-        feature_height=256,
-        channels=256,
-    ).to(device)
-    print(
-        model(
-            c,
-            record_len=torch.tensor([2, 2]),
-        ).shape
-    )
+    a = (1) * 2
+    b = (1,) * 2
+    print(a, b)
