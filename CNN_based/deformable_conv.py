@@ -4,7 +4,7 @@ from torch import nn
 
 class DeformConv2d(nn.Module):
     def __init__(
-        self, inc, outc, kernel_size=3, padding=1, stride=1, bias=None, modulation=False
+            self, inc, outc, kernel_size=3, padding=1, stride=1, bias=None, modulation=False
     ):
         """
         Args:
@@ -86,16 +86,16 @@ class DeformConv2d(nn.Module):
 
         # bilinear kernel (b, h, w, N)
         g_lt = (1 + (q_lt[..., :N].type_as(p) - p[..., :N])) * (
-            1 + (q_lt[..., N:].type_as(p) - p[..., N:])
+                1 + (q_lt[..., N:].type_as(p) - p[..., N:])
         )
         g_rb = (1 - (q_rb[..., :N].type_as(p) - p[..., :N])) * (
-            1 - (q_rb[..., N:].type_as(p) - p[..., N:])
+                1 - (q_rb[..., N:].type_as(p) - p[..., N:])
         )
         g_lb = (1 + (q_lb[..., :N].type_as(p) - p[..., :N])) * (
-            1 - (q_lb[..., N:].type_as(p) - p[..., N:])
+                1 - (q_lb[..., N:].type_as(p) - p[..., N:])
         )
         g_rt = (1 - (q_rt[..., :N].type_as(p) - p[..., :N])) * (
-            1 + (q_rt[..., N:].type_as(p) - p[..., N:])
+                1 + (q_rt[..., N:].type_as(p) - p[..., N:])
         )
 
         # (b, c, h, w, N)
@@ -106,10 +106,10 @@ class DeformConv2d(nn.Module):
 
         # (b, c, h, w, N)
         x_offset = (
-            g_lt.unsqueeze(dim=1) * x_q_lt
-            + g_rb.unsqueeze(dim=1) * x_q_rb
-            + g_lb.unsqueeze(dim=1) * x_q_lb
-            + g_rt.unsqueeze(dim=1) * x_q_rt
+                g_lt.unsqueeze(dim=1) * x_q_lt
+                + g_rb.unsqueeze(dim=1) * x_q_rb
+                + g_lb.unsqueeze(dim=1) * x_q_lb
+                + g_rt.unsqueeze(dim=1) * x_q_rt
         )
 
         # modulation
@@ -182,7 +182,7 @@ class DeformConv2d(nn.Module):
         b, c, h, w, N = x_offset.size()
         x_offset = torch.cat(
             [
-                x_offset[..., s : s + ks].contiguous().view(b, c, h, w * ks)
+                x_offset[..., s: s + ks].contiguous().view(b, c, h, w * ks)
                 for s in range(0, N, ks)
             ],
             dim=-1,
