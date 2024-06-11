@@ -2,11 +2,13 @@
 #   #-*- coding:utf-8 -*-
 #  Copyleft (C) 2024 proanimer, Inc. All Rights Reserved
 #   author:proanimer
-#   createTime:2024/2/17 下午3:34
-#   lastModifiedTime:2024/2/17 下午3:34
+#   createTime:2024/2/27 下午2:13
+#   lastModifiedTime:2024/2/27 下午2:13
 #   file:localvit.py
 #   software: classicNets
 #
+
+
 from math import sqrt
 
 import torch

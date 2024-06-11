@@ -23,7 +23,7 @@ def posemb_sincos_2d(h, w, dim, temperature: int = 10000, dtype=torch.float32):
     return pe.type(dtype)
 
 
-# classes
+# classesm
 
 
 class FeedForward(nn.Module):
