@@ -10,6 +10,7 @@
 import torch
 import torch.nn as nn
 import math
+import numpy as np
 
 
 class Embedding(nn.Module):
@@ -32,7 +33,7 @@ class ScaledDotProductAttention(nn.Module):
     def __init__(self):
         super(ScaledDotProductAttention, self).__init__()
 
-    def forward(self, Q, K, V, attn_mask):
+    def forward(self, Q, K, V, attn_mask, d_k):
         scores = torch.matmul(Q, K.transpose(-1, -2)) / np.sqrt(d_k)  # scores : [batch_size, n_heads, seq_len, seq_len]
         scores.masked_fill_(attn_mask, -1e9)  # Fills elements of self tensor with value where mask is one.
         attn = nn.Softmax(dim=-1)(scores)
@@ -66,7 +67,7 @@ class MultiHeadAttention(nn.Module):
                                                   1)  # attn_mask : [batch_size, n_heads, seq_len, seq_len]
 
         # context: [batch_size, n_heads, seq_len, d_v], attn: [batch_size, n_heads, seq_len, seq_len]
-        context = ScaledDotProductAttention()(q_s, k_s, v_s, attn_mask)
+        context = ScaledDotProductAttention()(q_s, k_s, v_s, attn_mask, self.dk)
         context = context.transpose(1, 2).contiguous().view(batch_size, -1,
                                                             self.n_heads * self.d_v)  # context: [batch_size, seq_len, n_heads, d_v]
         output = nn.Linear(self.n_heads * self.d_v, self.d_model)(context)
