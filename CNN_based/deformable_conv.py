@@ -24,7 +24,7 @@ class DeformConv2d(nn.Module):
         )
         nn.init.constant_(self.p_conv.weight, 0)
         self.p_conv.register_backward_hook(self._set_lr)
-
+        
         self.modulation = modulation
         if modulation:
             self.m_conv = nn.Conv2d(
