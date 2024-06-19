@@ -47,6 +47,5 @@ if __name__ == "__main__":
     # print(h_coor.shape, w_coor.shape)
     # pos_feat = torch.stack([h_coor, w_coor], dim=-1)
     # print(pos_feat.shape)
-    a = torch.randn(3, 200)
-    _, indice = torch.topk(a, 120)
-    print(indice)
+    a = [] + [2] + [532, 5]
+    print(a)
