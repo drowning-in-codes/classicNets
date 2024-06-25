@@ -73,7 +73,7 @@ class SentPairDataLoader():
             batch = []
             for i in range(self.batch_size):
                 # sampling length of each tokens_a and tokens_b
-                # sometimes sample a short sentence to match between train and test sequences
+                # sometimes sample a short sentence to match between train and image_segmentation sequences
                 len_tokens = randint(1, int(self.max_len / 2)) \
                     if rand() < self.short_sampling_prob \
                     else int(self.max_len / 2)
