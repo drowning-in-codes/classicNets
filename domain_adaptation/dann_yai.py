@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Function
-
+import cv2
 import torch.optim as optim
 import torchvision.transforms as transforms
 from torchvision.datasets import ImageFolder
@@ -148,7 +148,7 @@ optimizer_D = optim.Adam(domain_classifier.parameters())
 
 
 def train_epoch(source_dataloader, target_dataloader, progress, lamb):
-    running_D_loss, running_F_loss = 0.0, 0, 0
+    running_D_loss, running_F_loss = 0.0, 0.0
     total_hit, total_num = 0.0, 0.0
     batch_tqdm = progress.add_task(description=f"batch_progress", total=len(source_dataloader))
 

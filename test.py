@@ -1,8 +1,3 @@
-import logging
-import os
-import time
-
-import onnxruntime
 import torch
 import torch.nn as nn
 
@@ -77,49 +72,68 @@ class SuperResolutionNet(nn.Module):
 
 # Create the super-resolution model by using the above model definition.
 torch_model = SuperResolutionNet(upscale_factor=3)
+from torch.autograd import Function
+
+
+class _GradReverseLayer(Function):
+    @staticmethod
+    def forward(ctx, x, constant):
+        assert isinstance(constant, int) and constant > 0
+        ctx.constant = constant
+        return x.view_as(x)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        return grad_output.neg() * ctx.constant, None
+
+
+class GradReverseLayer(nn.Module):
+    def __init__(self, weight):
+        super(GradReverseLayer, self).__init__()
+        self.weight = weight
+
+    def forward(self, x):
+        return _GradReverseLayer.apply(x, self.weight)
+
+
+def backward_hook(module, grad_input, grad_output):
+    output_grad_input = - grad_input[0]
+    return (output_grad_input,)
+
+
+class negGradient(nn.Module):
+    def __init__(self):
+        super(negGradient, self).__init__()
+        self.register_full_backward_hook(backward_hook)
+
+    def forward(self, x):
+        return x
+
 
 if __name__ == "__main__":
-    # Load pretrained model weights
-    import torch
-    import torchvision
+    input = torch.randn((1, 40, 224, 224))
+    model = nn.Conv2d(40, 10, 3, 1)
+    output = model(input)
+    grl_1 = negGradient()
+    output = grl_1(output)
 
-    dummy_input = torch.randn(10, 3, 224, 224, device="cuda")
-    # model = torchvision.models.alexnet(pretrained=True).cuda()
+    grl = GradReverseLayer(1)
+    output_final = grl(output)
+    loss = torch.mean(output_final - 1)
+    loss.backward()
+    print(model.weight.grad[0, 0, :, :])
+    # f = cdll.LoadLibrary("./func.so")
+    # print(f.func(99))
 
-    # Providing input and output names sets the display names for values
-    # within the model's graph. Setting these does not change the semantics
-    # of the graph; it is only for readability.
-    #
-    # The inputs to the network consist of the flat list of inputs (i.e.
-    # the values you would pass to the forward() method) followed by the
-    # flat list of parameters. You can partially specify names, i.e. provide
-    # a list here shorter than the number of inputs to the model, and we will
-    # only set that subset of names, starting from the beginning.
-    # input_names = ["actual_input_1"] + ["learned_%d" % i for i in range(16)]
-    # output_names = ["output1"]
-    # torch.onnx.export(model, dummy_input, "alexnet.onnx", verbose=True, input_names=input_names,
-    #                   output_names=output_names)
-    import onnx
-
-    onnx_model = onnx.load("alexnet.onnx")
-    onnx.checker.check_model(onnx_model)
-    # print(onnx.helper.printable_graph(onnx_model.graph))
-    print(onnx_model.model_version)
-    ort_session = onnxruntime.InferenceSession("alexnet.onnx", providers=["CPUExecutionProvider"])
-
-
-    # Print a human readable representation of the graph
-
-    def to_numpy(tensor):
-        return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
-
-
-    # compute ONNX Runtime output prediction
-    ort_inputs = {ort_session.get_inputs()[0].name: to_numpy(dummy_input)}
-    ort_outs = ort_session.run(None, ort_inputs)
-    print(ort_outs)
+    # input = torch.randn(1, 20, 10)
+    # model = nn.Linear(10, 3)
+    # inter = model(input)
+    # # model2 = nn.Linear(3, 1)
+    # # output = model2(inter.detach())
+    # loss = torch.mean(inter - 1)
+    # loss.backward()
+    # print(input.grad_fn, inter.grad)
     # pixel_percentage = {
-
     #     "background": 51.148658,
     #     "algae": 0.064494,
     #     "dead_twigs_leaves": 0.012825,
