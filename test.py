@@ -1,4 +1,3 @@
-import torch
 import torch.nn as nn
 
 
@@ -110,18 +109,22 @@ class negGradient(nn.Module):
         return x
 
 
-if __name__ == "__main__":
-    input = torch.randn((1, 40, 224, 224))
-    model = nn.Conv2d(40, 10, 3, 1)
-    output = model(input)
-    grl_1 = negGradient()
-    output = grl_1(output)
+import torch
 
-    grl = GradReverseLayer(1)
-    output_final = grl(output)
-    loss = torch.mean(output_final - 1)
-    loss.backward()
-    print(model.weight.grad[0, 0, :, :])
+if __name__ == "__main__":
+    t = torch.randn(3)
+    print(t.expand((2, -1)).shape)
+    x = torch.randn(1, 9, 12, 4)  # 3 x 3
+    y = torch.randn(1, 3, 12, 1).expand_as(x)
+    z = x + y
+    print(z.shape)
+
+    # x.t().view(1, -1)  # Flattens the Tensor
+    # model = nn.Conv2d(40, 10, 3, 1)
+    # optimizer = torch.optim.AdamW(model.parameters())
+    # for p in optimizer.param_groups:
+    #     for k, v in p.items():
+    #         print(k, "->", v)
     # f = cdll.LoadLibrary("./func.so")
     # print(f.func(99))
 
