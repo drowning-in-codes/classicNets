@@ -1,13 +1,3 @@
-#  #!/usr/bin/env python
-#  -*- coding:utf-8 -*-
-#  Copyleft (C) 2024 proanimer, Inc. All Rights Reserved
-#   author:proanimer
-#   createTime:2024/7/8 下午11:16
-#   lastModifiedTime:2024/7/8 下午11:16
-#   file:engine.py
-#   software: classicNets
-#
-
 class Value:
     """ stores a single scalar value and its gradient """
 

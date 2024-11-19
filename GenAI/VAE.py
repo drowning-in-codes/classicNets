@@ -8,9 +8,13 @@
 #   software: classicNets
 #
 
+import random
+
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
+
 
 def same_seeds(seed):
     random.seed(seed)
@@ -22,7 +26,9 @@ def same_seeds(seed):
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
 
+
 same_seeds(48763)
+
 
 class VAE(nn.Module):
     def __init__(self):
