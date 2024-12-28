@@ -17,7 +17,7 @@ from utils import LayerNorm, GRN
 
 
 class Block(nn.Module):
-    def __init__(self, dim, drop_path=.0):
+    def __init__(self, dim, drop_path=0.0):
         super().__init__()
         self.dwconv = nn.Conv2d(dim, dim, groups=dim, kernel_size=7, padding=3)
         self.norm = LayerNorm(dim, eps=1e-6)
@@ -42,12 +42,22 @@ class Block(nn.Module):
 
 
 class ConvNeXtIsotropic(nn.Module):
-    def __init__(self, in_chans=3, num_classes=1000, depth=18, dim=384, drop_paht_rate=0., layer_scale_init_value=0,
-                 head_init_scale=1.):
+    def __init__(
+        self,
+        in_chans=3,
+        num_classes=1000,
+        depth=18,
+        dim=384,
+        drop_paht_rate=0.0,
+        layer_scale_init_value=0,
+        head_init_scale=1.0,
+    ):
         super().__init__()
         self.stem = nn.Conv2d(in_chans, dim, kernel_size=16, stride=16)
         dp_rates = [x.item() for x in torch.linspace(0, drop_paht_rate, depth)]
-        self.blocks = nn.Sequential(*[Block(dim=dim, drop_path=dp_rates[i]) for i in range(depth)])
+        self.blocks = nn.Sequential(
+            *[Block(dim=dim, drop_path=dp_rates[i]) for i in range(depth)]
+        )
         self.norm = LayerNorm(dim, eps=1e-6)
         self.head = nn.Linear(dim, num_classes)
 
@@ -57,7 +67,7 @@ class ConvNeXtIsotropic(nn.Module):
 
     def _init_weights(self, m):
         if isinstance(m, (nn.Conv2d, nn.Linear)):
-            trunc_normal_(m.weight, std=.02)
+            trunc_normal_(m.weight, std=0.02)
             nn.init.constant_(m.bias, 0)
 
     def forward_features(self, x):
@@ -90,20 +100,27 @@ def convnext_isotropic_large(pretrained=False, **kwargs):
 
 
 class ConvNeXtV2(nn.Module):
-    def __init__(self, in_chans=3, num_classes=1000, depths=[3, 3, 9, 3], dims=[96, 192, 384, 768], drop_path_rate=0,
-                 head_init_scale=1):
+    def __init__(
+        self,
+        in_chans=3,
+        num_classes=1000,
+        depths=[3, 3, 9, 3],
+        dims=[96, 192, 384, 768],
+        drop_path_rate=0,
+        head_init_scale=1,
+    ):
         super().__init__()
         self.depths = depths
         self.downsample_layers = nn.ModuleList()
         stem = nn.Sequential(
             nn.Conv2d(in_chans, dims[0], kernel_size=4, stride=4),
-            LayerNorm(dims[0], eps=1e-6, data_format="channels_first")
+            LayerNorm(dims[0], eps=1e-6, data_format="channels_first"),
         )
         self.downsample_layers.append(stem)
         for i in range(3):
             downsample_layer = nn.Sequential(
                 LayerNorm(dims[i], eps=1e-6, data_format="channels_first"),
-                nn.Conv2d(dims[i], dims[i + 1], kernel_size=2, stride=2)
+                nn.Conv2d(dims[i], dims[i + 1], kernel_size=2, stride=2),
             )
             self.downsample_layers.append(downsample_layer)
 
@@ -112,7 +129,10 @@ class ConvNeXtV2(nn.Module):
         cur = 0
         for i in range(4):
             stage = nn.Sequential(
-                *[Block(dim=dims[i], drop_path=dp_rates[cur + j]) for j in range(depths[i])]
+                *[
+                    Block(dim=dims[i], drop_path=dp_rates[cur + j])
+                    for j in range(depths[i])
+                ]
             )
             self.stages.append(stage)
             cur += depths[i]
@@ -125,7 +145,7 @@ class ConvNeXtV2(nn.Module):
 
     def _init_weights(self, m):
         if isinstance(m, (nn.Conv2d, nn.Linear)):
-            trunc_normal_(m.weight, std=.02)
+            trunc_normal_(m.weight, std=0.02)
             nn.init.constant_(m.bias, 0)
 
     def forward_features(self, x):

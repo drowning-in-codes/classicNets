@@ -19,9 +19,9 @@ class Quantize(nn.Module):
     def forward(self, input):
         flatten = input.reshape(-1, self.dim)
         dist = (
-                flatten.pow(2).sum(1, keepdim=True)
-                - 2 * flatten @ self.embed
-                + self.embed.pow(2).sum(0, keepdim=True)
+            flatten.pow(2).sum(1, keepdim=True)
+            - 2 * flatten @ self.embed
+            + self.embed.pow(2).sum(0, keepdim=True)
         )
         _, embed_ind = (-dist).max(1)
         embed_onehot = F.one_hot(embed_ind, self.n_embed).type(flatten.dtype)
@@ -37,7 +37,7 @@ class Quantize(nn.Module):
             self.embed_avg.data.mul_(self.decay).add_(embed_sum, alpha=1 - self.decay)
             n = self.cluster_size.sum()
             cluster_size = (
-                    (self.cluster_size + self.eps) / (n + self.n_embed * self.eps) * n
+                (self.cluster_size + self.eps) / (n + self.n_embed * self.eps) * n
             )
             embed_normalized = self.embed_avg / cluster_size.unsqueeze(0)
             self.embed.data.copy_(embed_normalized)
@@ -93,7 +93,7 @@ class Encoder(nn.Module):
 
 class Decoder(nn.Module):
     def __init__(
-            self, in_channel, out_channel, channel, n_res_block, n_res_channel, stride
+        self, in_channel, out_channel, channel, n_res_block, n_res_channel, stride
     ):
         super().__init__()
         blocks = [nn.Conv2d(in_channel, channel, 3, padding=1)]
@@ -120,14 +120,14 @@ class Decoder(nn.Module):
 
 class VQVAE(nn.Module):
     def __init__(
-            self,
-            in_channel=3,
-            channel=128,
-            n_res_block=2,
-            n_res_channel=32,
-            embed_dim=64,
-            n_embed=512,
-            decay=0.99,
+        self,
+        in_channel=3,
+        channel=128,
+        n_res_block=2,
+        n_res_channel=32,
+        embed_dim=64,
+        n_embed=512,
+        decay=0.99,
     ):
         super().__init__()
         self.enc_b = Encoder(in_channel, channel, n_res_block, n_res_channel, stride=4)

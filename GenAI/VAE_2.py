@@ -12,7 +12,7 @@ from collections import OrderedDict
 import torch
 import torch.nn as nn
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class Flatten(nn.Module):
@@ -32,7 +32,9 @@ class MLP(nn.Module):
             in_dim = hidden_size[i]
             out_din = hidden_size[i + 1]
             q.append(("Linear_%d" % i, nn.Linear(in_dim, out_din)))
-            if i < len(hidden_size) - 2 or ((i == len(hidden_size) - 2) and (last_activation)):
+            if i < len(hidden_size) - 2 or (
+                (i == len(hidden_size) - 2) and (last_activation)
+            ):
                 q.append(("BatchNorm_%d" % i, nn.BatchNorm1d(out_din)))
                 q.append(("ReLU_%d" % i, nn.ReLU()))
             self.mlp = nn.Sequential(OrderedDict(q))
@@ -47,14 +49,24 @@ class Encoder(nn.Module):
         c, h, w = shape
         ww = ((w - 8) // 2 - 4) // 2
         hh = ((h - 8) // 2 - 4) // 2
-        self.encode = nn.Sequential(nn.Conv2d(c, 16, 5, padding=0), nn.BatchNorm2d(16), nn.ReLU(inplace=True),
-                                    nn.Conv2d(16, 32, 5, padding=0), nn.BatchNorm2d(32), nn.ReLU(inplace=True),
-                                    nn.MaxPool2d(2, 2),
-                                    nn.Conv2d(32, 64, 3, padding=0), nn.BatchNorm2d(64), nn.ReLU(inplace=True),
-                                    nn.Conv2d(64, 64, 3, padding=0), nn.BatchNorm2d(64), nn.ReLU(inplace=True),
-                                    nn.MaxPool2d(2, 2),
-                                    Flatten(), MLP([ww * hh * 64, 256, 128])
-                                    )
+        self.encode = nn.Sequential(
+            nn.Conv2d(c, 16, 5, padding=0),
+            nn.BatchNorm2d(16),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(16, 32, 5, padding=0),
+            nn.BatchNorm2d(32),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2, 2),
+            nn.Conv2d(32, 64, 3, padding=0),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(64, 64, 3, padding=0),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2, 2),
+            Flatten(),
+            MLP([ww * hh * 64, 256, 128]),
+        )
         self.calc_mean = MLP([128 + ncond, 64, nhid], last_activation=False)
         self.calc_logvar = MLP([128 + ncond, 64, nhid], last_activation=False)
 
@@ -63,7 +75,9 @@ class Encoder(nn.Module):
         if y is None:
             return self.calc_mean(x), self.calc_logvar(x)
         else:
-            return self.calc_mean(torch.cat((x, y), dim=1)), self.calc_logvar(torch.cat((x, y), dim=1))
+            return self.calc_mean(torch.cat((x, y), dim=1)), self.calc_logvar(
+                torch.cat((x, y), dim=1)
+            )
 
 
 class Decoder(nn.Module):
@@ -71,7 +85,10 @@ class Decoder(nn.Module):
         super().__init__()
         c, w, h = shape
         self.shape = shape
-        self.decode = nn.Sequential(MLP([nhid + ncond, 64, 128, 256, c * w * h], last_activation=False), nn.Sigmoid())
+        self.decode = nn.Sequential(
+            MLP([nhid + ncond, 64, 128, 256, c * w * h], last_activation=False),
+            nn.Sigmoid(),
+        )
 
     def forward(self, z, y=None):
         c, w, h = self.shape
@@ -99,7 +116,11 @@ class VAE(nn.Module):
         return self.decoder(z), mean, logvar
 
     def generate(self, batch_size=None):
-        z = torch.randn((batch_size, self.dim)).to(device) if batch_size else torch.randn(1, self.dim).to(device)
+        z = (
+            torch.randn((batch_size, self.dim)).to(device)
+            if batch_size
+            else torch.randn(1, self.dim).to(device)
+        )
         res = self.decoder(z)
         if not batch_size:
             res = res.squeeze(0)
@@ -112,7 +133,9 @@ class cVAE(nn.Module):
         self.dim = nhid
         self.encoder = Encoder(shape, nhid, ncond=ncond)
         self.decoder = Decoder(shape, nhid, ncond=ncond)
-        self.label_embedding = nn.Embedding(nclass, ncond)  # create a lookup table #shape [nclass,ncond.shape]
+        self.label_embedding = nn.Embedding(
+            nclass, ncond
+        )  # create a lookup table #shape [nclass,ncond.shape]
 
     def samping(self, mean, logvar):
         eps = torch.randn(mean.shape).to(device)
@@ -143,7 +166,7 @@ class cVAE(nn.Module):
         return res
 
 
-BCE_loss = nn.BCELoss(reduction='sum')
+BCE_loss = nn.BCELoss(reduction="sum")
 
 
 def total_loss(X, X_hat, mean, logvar):

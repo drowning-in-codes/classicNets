@@ -17,5 +17,5 @@ class HelperModule(nn.Module):
     @staticmethod
     def get_device(cpu: bool):
         if cpu or not torch.cuda.is_available():
-            return torch.device('cpu')
-        return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            return torch.device("cpu")
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")

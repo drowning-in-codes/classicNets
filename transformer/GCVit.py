@@ -5,9 +5,9 @@ from timm.models import trunc_normal_, DropPath
 
 def _to_channel_last(x):
     """
-   (B,H,W,C)->  (B,C,H,W)
-    :param x:
-    :return:
+    (B,H,W,C)->  (B,C,H,W)
+     :param x:
+     :return:
     """
     return x.permute(0, 2, 3, 1)
 
@@ -31,7 +31,9 @@ def window_partition(x, window_size, h_w, w_w):
     """
     B, H, W, C = x.shape
     x = x.view(B, h_w, window_size, w_w, window_size, C)
-    windows = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(-1, window_size, window_size, C)
+    windows = (
+        x.permute(0, 1, 3, 2, 4, 5).contiguous().view(-1, window_size, window_size, C)
+    )
     return windows
 
 
@@ -52,7 +54,14 @@ def window_reverse(windows, window_size, H, W, h_w, w_w, B):
 
 
 class Mlp(nn.Module):
-    def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=.0):
+    def __init__(
+        self,
+        in_features,
+        hidden_features=None,
+        out_features=None,
+        act_layer=nn.GELU,
+        drop=0.0,
+    ):
         super().__init__()
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
@@ -71,14 +80,14 @@ class Mlp(nn.Module):
 
 
 class SE(nn.Module):
-    def __init__(self, inp, oup, expansion=.25):
+    def __init__(self, inp, oup, expansion=0.25):
         super().__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
         self.fc = nn.Sequential(
             nn.Linear(oup, int(inp * expansion), bias=False),
             nn.GELU(),
             nn.Linear(int(inp * expansion), oup, bias=False),
-            nn.Sigmoid()
+            nn.Sigmoid(),
         )
 
     def forward(self, x):
@@ -91,10 +100,12 @@ class SE(nn.Module):
 class ReduceSize(nn.Module):
     def __init__(self, dim, norm_layer=nn.LayerNorm, keep_dim=False):
         super().__init__()
-        self.conv = nn.Sequential(nn.Conv2d(dim, dim, 3, 1, 1, groups=dim, bias=False),
-                                  nn.GELU(),
-                                  SE(dim, dim),
-                                  nn.Conv2d(dim, dim, 1, 1, 0, bias=False))
+        self.conv = nn.Sequential(
+            nn.Conv2d(dim, dim, 3, 1, 1, groups=dim, bias=False),
+            nn.GELU(),
+            SE(dim, dim),
+            nn.Conv2d(dim, dim, 1, 1, 0, bias=False),
+        )
         if keep_dim:
             dim_out = dim
         else:
@@ -130,10 +141,12 @@ class PatchEmbed(nn.Module):
 class FeatExtract(nn.Module):
     def __init__(self, dim, keep_dim=False):
         super().__init__()
-        self.conv = nn.Sequential(nn.Conv2d(dim, dim, 3, 1, 1, groups=dim, bias=False),
-                                  nn.GELU(),
-                                  SE(dim, dim),
-                                  nn.Conv2d(dim, dim, 1, 1, 0, bias=False))
+        self.conv = nn.Sequential(
+            nn.Conv2d(dim, dim, 3, 1, 1, groups=dim, bias=False),
+            nn.GELU(),
+            SE(dim, dim),
+            nn.Conv2d(dim, dim, 1, 1, 0, bias=False),
+        )
         if not keep_dim:
             self.pool = nn.MaxPool2d(3, 2, 1)
         self.keep_dim = keep_dim
@@ -147,16 +160,26 @@ class FeatExtract(nn.Module):
 
 
 class WindowAttention(nn.Module):
-    def __init__(self, dim, num_heads, window_size, qkv_bias=True, qk_scale=None, attn_drop=.0, proj_drop=.0):
+    def __init__(
+        self,
+        dim,
+        num_heads,
+        window_size,
+        qkv_bias=True,
+        qk_scale=None,
+        attn_drop=0.0,
+        proj_drop=0.0,
+    ):
         super().__init__()
         window_size = (window_size, window_size)
         self.window_size = window_size
         self.num_heads = num_heads
-        head_dim = torch.div(dim, num_heads, rounding_mode='floor')
-        self.scale = qk_scale or head_dim ** -0.5
+        head_dim = torch.div(dim, num_heads, rounding_mode="floor")
+        self.scale = qk_scale or head_dim**-0.5
         # relative position embedding
         self.relative_position_bias_table = nn.Parameter(
-            torch.zeros((2 * window_size[0] - 1) * (2 * window_size[1] - 1), num_heads))
+            torch.zeros((2 * window_size[0] - 1) * (2 * window_size[1] - 1), num_heads)
+        )
         coords_h = torch.arange(self.window_size[0])
         coords_w = torch.arange(self.window_size[1])
         coords = torch.stack(torch.meshgrid([coords_h, coords_w]))
@@ -167,26 +190,34 @@ class WindowAttention(nn.Module):
         relative_coords[:, :, 1] += self.window_size[1] - 1
         relative_coords[:, :, 0] *= 2 * self.window_size[1] - 1
         relative_position_index = relative_coords.sum(-1)
-        self.register_buffer('relative_position_index', relative_position_index)
+        self.register_buffer("relative_position_index", relative_position_index)
 
         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
-        trunc_normal_(self.relative_position_bias_table, std=.02)
+        trunc_normal_(self.relative_position_bias_table, std=0.02)
         self.softmax = nn.Softmax(dim=-1)
 
     def forward(self, x, q_global):
         B_, N, C = x.shape  # batch_size*num_windows
-        head_dim = torch.div(C, self.num_heads, rounding_mode='floor')  #
-        qkv = self.qkv(x).reshape(B_, N, 3, self.num_heads, head_dim).permute(2, 0, 3, 1,
-                                                                              4)  # 3 B_ num_heads N(window_size*window_size) head_dim
+        head_dim = torch.div(C, self.num_heads, rounding_mode="floor")  #
+        qkv = (
+            self.qkv(x)
+            .reshape(B_, N, 3, self.num_heads, head_dim)
+            .permute(2, 0, 3, 1, 4)
+        )  # 3 B_ num_heads N(window_size*window_size) head_dim
         q, k, v = qkv[0], qkv[1], qkv[2]
         q = q * self.scale
-        attn = (q @ k.transpose(-2, -1))
-        relative_position_bias = self.relative_position_bias_table[self.relative_position_index.view(-1)].view(
-            self.window_size[0] * self.window_size[1], self.window_size[0] * self.window_size[1], -1)
+        attn = q @ k.transpose(-2, -1)
+        relative_position_bias = self.relative_position_bias_table[
+            self.relative_position_index.view(-1)
+        ].view(
+            self.window_size[0] * self.window_size[1],
+            self.window_size[0] * self.window_size[1],
+            -1,
+        )
         relative_position_bias = relative_position_bias.permute(2, 0, 1).contiguous()
         attn = attn + relative_position_bias.unsqueeze(0)
         attn = self.softmax(attn)
@@ -199,16 +230,26 @@ class WindowAttention(nn.Module):
 
 
 class WindowAttentionGlobal(nn.Module):
-    def __init__(self, dim, num_heads, window_size, qkv_bias=True, qk_scale=None, attn_drop=.0, proj_drop=.0):
+    def __init__(
+        self,
+        dim,
+        num_heads,
+        window_size,
+        qkv_bias=True,
+        qk_scale=None,
+        attn_drop=0.0,
+        proj_drop=0.0,
+    ):
         super().__init__()
         window_size = (window_size, window_size)
         self.window_size = window_size
         self.num_heads = num_heads
-        head_dim = torch.dim(dim, num_heads, rounding_mode='floor')
-        self.scale = qk_scale or head_dim ** -0.5
+        head_dim = torch.dim(dim, num_heads, rounding_mode="floor")
+        self.scale = qk_scale or head_dim**-0.5
 
         self.relative_position_bias_table = nn.Parameter(
-            torch.zeros((2 * window_size[0] - 1) * (2 * window_size[1] - 1), num_heads))
+            torch.zeros((2 * window_size[0] - 1) * (2 * window_size[1] - 1), num_heads)
+        )
         coords_h = torch.arange(self.window_size[0])
         coords_w = torch.arange(self.window_size[1])
         coords = torch.stack(torch.meshgrid([coords_h, coords_w]))
@@ -225,22 +266,34 @@ class WindowAttentionGlobal(nn.Module):
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
-        trunc_normal_(self.relative_position_bias_table, std=.02)
+        trunc_normal_(self.relative_position_bias_table, std=0.02)
         self.softmax = nn.Softmax(dim=-1)
 
     def forward(self, x, q_global):
         B_, N, C = x.shape
         B = q_global.shape[0]
-        head_dim = torch.div(C, self.num_heads, rounding_mode='floor')
-        B_dim = torch.div(B_, B, rounding_mode='floor')
-        kv = self.qkv(x).reshape(B_, N, 2, self.num_heads, head_dim).permute(2, 0, 3, 1, 4)
-        k, v = kv[0], kv[1],
+        head_dim = torch.div(C, self.num_heads, rounding_mode="floor")
+        B_dim = torch.div(B_, B, rounding_mode="floor")
+        kv = (
+            self.qkv(x)
+            .reshape(B_, N, 2, self.num_heads, head_dim)
+            .permute(2, 0, 3, 1, 4)
+        )
+        k, v = (
+            kv[0],
+            kv[1],
+        )
         q_global = q_global.repeat(1, B_dim, 1, 1, 1)
         q = q_global.reshape(B_, self.num_heads, N, head_dim)
         q = q * self.scale
-        attn = (q @ k.transpose(-2, -1))
-        relative_position_bias = self.relative_position_bias_table[self.relative_position_index.view(-1)].view(
-            self.window_size[0] * self.window_size[1], self.window_size[0] * self.window_size[1], -1)
+        attn = q @ k.transpose(-2, -1)
+        relative_position_bias = self.relative_position_bias_table[
+            self.relative_position_index.view(-1)
+        ].view(
+            self.window_size[0] * self.window_size[1],
+            self.window_size[0] * self.window_size[1],
+            -1,
+        )
         relative_position_bias = relative_position_bias.permute(2, 0, 1).contiguous()
         attn = attn + relative_position_bias.unsqueeze(0)
         attn = self.softmax(attn)
@@ -252,46 +305,66 @@ class WindowAttentionGlobal(nn.Module):
 
 
 class GCViTBlock(nn.Module):
-    def __init__(self, dim, input_resolution, num_heads, window_size=7, mlp_ratio=4, qkv_bias=True, qk_scale=None,
-                 drop=.0, attn_drop=0.,
-                 drop_path=0.,
-                 act_layer=nn.GELU,
-                 attention=WindowAttentionGlobal,
-                 norm_layer=nn.LayerNorm,
-                 layer_scale=None):
+    def __init__(
+        self,
+        dim,
+        input_resolution,
+        num_heads,
+        window_size=7,
+        mlp_ratio=4,
+        qkv_bias=True,
+        qk_scale=None,
+        drop=0.0,
+        attn_drop=0.0,
+        drop_path=0.0,
+        act_layer=nn.GELU,
+        attention=WindowAttentionGlobal,
+        norm_layer=nn.LayerNorm,
+        layer_scale=None,
+    ):
         super().__init__()
         self.window_size = window_size
         self.norm1 = norm_layer(dim)
 
-        self.attn = attention(dim,
-                              num_heads=num_heads,
-                              window_size=window_size,
-                              qkv_bias=qkv_bias,
-                              qk_scale=qk_scale,
-                              attn_drop=attn_drop,
-                              proj_drop=drop,
-                              )
+        self.attn = attention(
+            dim,
+            num_heads=num_heads,
+            window_size=window_size,
+            qkv_bias=qkv_bias,
+            qk_scale=qk_scale,
+            attn_drop=attn_drop,
+            proj_drop=drop,
+        )
 
-        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
         self.norm2 = norm_layer(dim)
-        self.mlp = Mlp(in_features=dim, hidden_features=int(dim * mlp_ratio), act_layer=act_layer, drop=drop)
+        self.mlp = Mlp(
+            in_features=dim,
+            hidden_features=int(dim * mlp_ratio),
+            act_layer=act_layer,
+            drop=drop,
+        )
         self.layer_scale = False
         if layer_scale is not None and type(layer_scale) in [int, float]:
             self.layer_scale = True
-            self.gamma1 = nn.Parameter(layer_scale * torch.ones(dim), requires_grad=True)
-            self.gamma2 = nn.Parameter(layer_scale * torch.ones(dim), requires_grad=True)
+            self.gamma1 = nn.Parameter(
+                layer_scale * torch.ones(dim), requires_grad=True
+            )
+            self.gamma2 = nn.Parameter(
+                layer_scale * torch.ones(dim), requires_grad=True
+            )
         else:
             self.gamma1 = 1.0
             self.gamma2 = 1.0
-        inp_w = torch.div(input_resolution, window_size, rounding_mode='floor')
+        inp_w = torch.div(input_resolution, window_size, rounding_mode="floor")
         self.num_windows = int(inp_w * inp_w)
 
     def forward(self, x, q_global):
         B, H, W, C = x.shape
         shortcut = x
         x = self.norm1(x)
-        h_w = torch.div(H, self.window_size, rounding_mode='floor')
-        w_w = torch.div(W, self.window_size, rounding_mode='floor')
+        h_w = torch.div(H, self.window_size, rounding_mode="floor")
+        w_w = torch.div(W, self.window_size, rounding_mode="floor")
         x_windows = window_partition(x, self.window_size, h_w, w_w)
         x_windows = x_windows.view(-1, self.window_size * self.window_size, C)
         attn_windows = self.attn(x_windows, q_global)
@@ -308,26 +381,21 @@ class GlobalQueryGen(nn.Module):
             self.to_q_global = nn.Sequential(
                 FeatExtract(dim, keep_dim=False),
                 FeatExtract(dim, keep_dim=False),
-                FeatExtract(dim, keep_dim=False)
+                FeatExtract(dim, keep_dim=False),
             )
         elif input_resolution == image_resolution // 8:
             self.to_q_global = nn.Sequential(
-                FeatExtract(dim, keep_dim=False),
-                FeatExtract(dim, keep_dim=False)
+                FeatExtract(dim, keep_dim=False), FeatExtract(dim, keep_dim=False)
             )
         elif input_resolution == image_resolution // 16:
             if window_size == input_resolution:
-                self.to_q_global = nn.Sequential(
-                    FeatExtract(dim, keep_dim=False)
-                )
+                self.to_q_global = nn.Sequential(FeatExtract(dim, keep_dim=False))
             else:
                 self.to_q_global = nn.Sequential(
                     FeatExtract(dim, keep_dim=False),
                 )
         elif input_resolution == image_resolution // 32:
-            self.to_q_global = nn.Sequential(
-                FeatExtract(dim, keep_dim=True)
-            )
+            self.to_q_global = nn.Sequential(FeatExtract(dim, keep_dim=True))
         self.resolution = input_resolution
         self.num_heads = num_heads
         self.N = window_size * window_size
@@ -336,25 +404,62 @@ class GlobalQueryGen(nn.Module):
         x = _to_channel_last(self.to_q_global(x))
         B = x.shape[0]
         # B H W C -> B 1 window_size*window_size num_heads head_dim -> B 1 num_heads window_size*window_size head_dim
-        x = x.reshape(B, 1, self.N, self.num_heads, self.dim_head).permute(0, 1, 3, 2, 4)
+        x = x.reshape(B, 1, self.N, self.num_heads, self.dim_head).permute(
+            0, 1, 3, 2, 4
+        )
         return x
 
 
 class GCViTLayer(nn.Module):
-    def __init__(self, dim, depth, input_resolution, image_resolution, num_heads, window_size, downsample=True,
-                 mlp_ratio=4, qkv_bias=True, qk_scale=None, drop=.0, attn_drop=0., drop_path=.0,
-                 norm_layer=nn.LayerNorm, layer_scale=None):
+    def __init__(
+        self,
+        dim,
+        depth,
+        input_resolution,
+        image_resolution,
+        num_heads,
+        window_size,
+        downsample=True,
+        mlp_ratio=4,
+        qkv_bias=True,
+        qk_scale=None,
+        drop=0.0,
+        attn_drop=0.0,
+        drop_path=0.0,
+        norm_layer=nn.LayerNorm,
+        layer_scale=None,
+    ):
         super().__init__()
-        self.blocks = nn.ModuleList([
-            GCViTBlock(dim=dim, num_heads=num_heads, window_size=window_size, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias,
-                       qk_scale=qk_scale, attention=WindowAttention if (i % 2 == 0) else WindowAttentionGlobal,
-                       drop=drop, attn_drop=attn_drop,
-                       drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path, norm_layer=norm_layer,
-                       layer_scale=layer_scale, input_resolution=input_resolution)
-            for i in range(depth)
-        ])
-        self.downsample = None if not downsample else ReduceSize(dim=dim, norm_layer=norm_layer)
-        self.q_global_gen = GlobalQueryGen(dim, input_resolution, image_resolution, window_size, num_heads)
+        self.blocks = nn.ModuleList(
+            [
+                GCViTBlock(
+                    dim=dim,
+                    num_heads=num_heads,
+                    window_size=window_size,
+                    mlp_ratio=mlp_ratio,
+                    qkv_bias=qkv_bias,
+                    qk_scale=qk_scale,
+                    attention=WindowAttention
+                    if (i % 2 == 0)
+                    else WindowAttentionGlobal,
+                    drop=drop,
+                    attn_drop=attn_drop,
+                    drop_path=drop_path[i]
+                    if isinstance(drop_path, list)
+                    else drop_path,
+                    norm_layer=norm_layer,
+                    layer_scale=layer_scale,
+                    input_resolution=input_resolution,
+                )
+                for i in range(depth)
+            ]
+        )
+        self.downsample = (
+            None if not downsample else ReduceSize(dim=dim, norm_layer=norm_layer)
+        )
+        self.q_global_gen = GlobalQueryGen(
+            dim, input_resolution, image_resolution, window_size, num_heads
+        )
 
     def forward(self, x):
         q_global = self.q_global_gen(_to_channels_first(x))
@@ -366,10 +471,25 @@ class GCViTLayer(nn.Module):
 
 
 class GCViT(nn.Module):
-    def __init__(self, dim, depths, window_size, mlp_ratio, num_heads, resolution=224, drop_path_rate=.2, in_chans=3,
-                 num_classes=1000,
-                 qkv_bias=True, qk_scale=None, drop_rate=.0, attn_drop_rate=.0, norm_layer=nn.LayerNorm,
-                 layer_scale=None, **kwargs):
+    def __init__(
+        self,
+        dim,
+        depths,
+        window_size,
+        mlp_ratio,
+        num_heads,
+        resolution=224,
+        drop_path_rate=0.2,
+        in_chans=3,
+        num_classes=1000,
+        qkv_bias=True,
+        qk_scale=None,
+        drop_rate=0.0,
+        attn_drop_rate=0.0,
+        norm_layer=nn.LayerNorm,
+        layer_scale=None,
+        **kwargs
+    ):
         super().__init__()
         num_features = int(dim * 2 ** (len(depths - 1)))
         self.num_classes = num_classes
@@ -378,21 +498,34 @@ class GCViT(nn.Module):
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
         self.levels = nn.ModuleList()
         for i in range(len(depths)):
-            level = GCViTLayer(dim=int(dim * 2 ** i), depth=depths[i], num_heads=num_heads, window_size=window_size,
-                               mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale, drop=drop_rate,
-                               attn_drop=attn_drop_rate,
-                               drop_path=dpr[sum(depths[:i], sum(depths[:i + 1]))], norm_layer=norm_layer,
-                               downsample=i < len(depths) - 1, layer_scale=layer_scale,
-                               input_resolution=int(2 ** (-2 - i) * resolution), image_resolution=resolution)
+            level = GCViTLayer(
+                dim=int(dim * 2**i),
+                depth=depths[i],
+                num_heads=num_heads,
+                window_size=window_size,
+                mlp_ratio=mlp_ratio,
+                qkv_bias=qkv_bias,
+                qk_scale=qk_scale,
+                drop=drop_rate,
+                attn_drop=attn_drop_rate,
+                drop_path=dpr[sum(depths[:i], sum(depths[: i + 1]))],
+                norm_layer=norm_layer,
+                downsample=i < len(depths) - 1,
+                layer_scale=layer_scale,
+                input_resolution=int(2 ** (-2 - i) * resolution),
+                image_resolution=resolution,
+            )
             self.levels.append(level)
         self.norm = norm_layer(num_features)
         self.avgpool = nn.AdaptiveAvgPool2d(1)
-        self.head = nn.Linear(num_features, num_classes) if num_classes > 0 else nn.Identity()
+        self.head = (
+            nn.Linear(num_features, num_classes) if num_classes > 0 else nn.Identity()
+        )
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
-            trunc_normal_(m.weight, std=.02)
+            trunc_normal_(m.weight, std=0.02)
             if isinstance(m, nn.Linear) and m.bias is not None:
                 nn.init.constant_(m.bias, 0)
         elif isinstance(m, nn.LayerNorm):
@@ -401,7 +534,7 @@ class GCViT(nn.Module):
 
     @torch.jit.ignore
     def no_weight_decay_keywords(self):
-        return {'rpb'}
+        return {"rpb"}
 
     def forward_features(self, x):
         x = self.patch_embed(x)

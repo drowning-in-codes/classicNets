@@ -17,7 +17,9 @@ class EMA:
         for name, param in self.model.named_parameters():
             if param.requires_grad:
                 assert name in self.shadow
-                new_average = (1.0 - self.decay) * param.data + self.decay * self.shadow[name]
+                new_average = (
+                    1.0 - self.decay
+                ) * param.data + self.decay * self.shadow[name]
                 self.shadow[name] = new_average
 
     def apply_shadow(self):
@@ -35,11 +37,8 @@ class EMA:
         self.backup = {}
 
 
-if __name__ == '__main__':
-    model = nn.Sequential(
-        nn.Conv2d(3, 16, 3, 1, 1),
-        nn.ReLU()
-    )
+if __name__ == "__main__":
+    model = nn.Sequential(nn.Conv2d(3, 16, 3, 1, 1), nn.ReLU())
     ema = EMA(model, 0.99)
     ema.register()
     # training loop

@@ -13,15 +13,23 @@ from einops import rearrange
 from torch import Tensor
 
 
-def scaled_dot_product_gqa(query: Tensor, key: Tensor, value: Tensor, dropout: float = .0,
-                           scale: Optional[float] = None, mask: Optional[Tensor] = None,
-                           is_causal: Optional[bool] = None, need_weights: bool = False,
-                           average_attn_weights: bool = False, force_grouped: bool = False):
+def scaled_dot_product_gqa(
+    query: Tensor,
+    key: Tensor,
+    value: Tensor,
+    dropout: float = 0.0,
+    scale: Optional[float] = None,
+    mask: Optional[Tensor] = None,
+    is_causal: Optional[bool] = None,
+    need_weights: bool = False,
+    average_attn_weights: bool = False,
+    force_grouped: bool = False,
+):
     """
     scaled dot product attention with support for grouped queries
     :param query:
     :param key:
-    :param value:    
+    :param value:
     :param dropout:
     :param scale:
     :param mask:

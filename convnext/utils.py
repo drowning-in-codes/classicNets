@@ -14,8 +14,7 @@ import torch.nn.functional as F
 
 
 class MinkowskiGRN(nn.Module):
-    """ GRN layer for sparse tensors.
-    """
+    """GRN layer for sparse tensors."""
 
     def __init__(self, dim):
         super().__init__()
@@ -31,44 +30,50 @@ class MinkowskiGRN(nn.Module):
         return SparseTensor(
             self.gamma * (x.F * Nx) + self.beta + x.F,
             coordinate_map_key=in_key,
-            coordinate_manager=cm)
+            coordinate_manager=cm,
+        )
 
 
 class MinkowskiDropPath(nn.Module):
-    """ Drop Path for sparse tensors.
-    """
+    """Drop Path for sparse tensors."""
 
-    def __init__(self, drop_prob: float = 0., scale_by_keep: bool = True):
+    def __init__(self, drop_prob: float = 0.0, scale_by_keep: bool = True):
         super(MinkowskiDropPath, self).__init__()
         self.drop_prob = drop_prob
         self.scale_by_keep = scale_by_keep
 
     def forward(self, x):
-        if self.drop_prob == 0. or not self.training:
+        if self.drop_prob == 0.0 or not self.training:
             return x
         cm = x.coordinate_manager
         in_key = x.coordinate_map_key
         keep_prob = 1 - self.drop_prob
-        mask = torch.cat([
-            torch.ones(len(_)) if random.uniform(0, 1) > self.drop_prob
-            else torch.zeros(len(_)) for _ in x.decomposed_coordinates
-        ]).view(-1, 1).to(x.device)
+        mask = (
+            torch.cat(
+                [
+                    torch.ones(len(_))
+                    if random.uniform(0, 1) > self.drop_prob
+                    else torch.zeros(len(_))
+                    for _ in x.decomposed_coordinates
+                ]
+            )
+            .view(-1, 1)
+            .to(x.device)
+        )
         if keep_prob > 0.0 and self.scale_by_keep:
             mask.div_(keep_prob)
         return SparseTensor(
-            x.F * mask,
-            coordinate_map_key=in_key,
-            coordinate_manager=cm)
+            x.F * mask, coordinate_map_key=in_key, coordinate_manager=cm
+        )
 
 
 class MinkowskiLayerNorm(nn.Module):
-    """ Channel-wise layer normalization for sparse tensors.
-    """
+    """Channel-wise layer normalization for sparse tensors."""
 
     def __init__(
-            self,
-            normalized_shape,
-            eps=1e-6,
+        self,
+        normalized_shape,
+        eps=1e-6,
     ):
         super(MinkowskiLayerNorm, self).__init__()
         self.ln = nn.LayerNorm(normalized_shape, eps=eps)
@@ -78,7 +83,8 @@ class MinkowskiLayerNorm(nn.Module):
         return SparseTensor(
             output,
             coordinate_map_key=input.coordinate_map_key,
-            coordinate_manager=input.coordinate_manager)
+            coordinate_manager=input.coordinate_manager,
+        )
 
 
 class LayerNorm(nn.Module):
@@ -95,7 +101,9 @@ class LayerNorm(nn.Module):
 
     def forward(self, x):
         if self.data_format == "channels_last":
-            return F.layer_norm(x, self.normalized_shape, self.weight, self.bias, self.eps)
+            return F.layer_norm(
+                x, self.normalized_shape, self.weight, self.bias, self.eps
+            )
         elif self.data_format == "channels_first":
             u = x.mean(1, keepdim=True)
             s = (x - u).pow(2).mean(1, keepdim=True)

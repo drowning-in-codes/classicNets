@@ -2,7 +2,6 @@ import torch.nn as nn
 
 
 class FeatureExtractor(nn.Module):
-
     def __init__(self):
         super(FeatureExtractor, self).__init__()
 
@@ -125,7 +124,6 @@ class ReZero(nn.Module):
             nn.Conv2d(in_channels, res_channels, 3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(res_channels),
             nn.ReLU(inplace=True),
-
             nn.Conv2d(res_channels, in_channels, 3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(in_channels),
             nn.ReLU(inplace=True),
@@ -139,31 +137,36 @@ class ReZero(nn.Module):
 class ResidualStack(nn.Module):
     def __init__(self, in_channels: int, res_channels: int, nb_layers: int):
         super(ResidualStack, self).__init__()
-        self.stack = nn.Sequential(*[ReZero(in_channels, res_channels)
-                                     for _ in range(nb_layers)
-                                     ])
+        self.stack = nn.Sequential(
+            *[ReZero(in_channels, res_channels) for _ in range(nb_layers)]
+        )
 
     def forward(self, x: torch.FloatTensor) -> torch.FloatTensor:
         return self.stack(x)
 
 
 class Encoder(nn.Module):
-    def __init__(self,
-                 in_channels: int, hidden_channels: int,
-                 res_channels: int, nb_res_layers: int,
-                 downscale_factor: int,
-                 ):
+    def __init__(
+            self,
+            in_channels: int,
+            hidden_channels: int,
+            res_channels: int,
+            nb_res_layers: int,
+            downscale_factor: int,
+    ):
         super(Encoder, self).__init__()
         assert log2(downscale_factor) % 1 == 0, "Downscale must be a power of 2"
         downscale_steps = int(log2(downscale_factor))
         layers = []
         c_channel, n_channel = in_channels, hidden_channels // 2
         for _ in range(downscale_steps):
-            layers.append(nn.Sequential(
-                nn.Conv2d(c_channel, n_channel, 4, stride=2, padding=1),
-                nn.BatchNorm2d(n_channel),
-                nn.ReLU(inplace=True),
-            ))
+            layers.append(
+                nn.Sequential(
+                    nn.Conv2d(c_channel, n_channel, 4, stride=2, padding=1),
+                    nn.BatchNorm2d(n_channel),
+                    nn.ReLU(inplace=True),
+                )
+            )
             c_channel, n_channel = n_channel, hidden_channels
         layers.append(nn.Conv2d(c_channel, n_channel, 3, stride=1, padding=1))
         layers.append(nn.BatchNorm2d(n_channel))
@@ -176,11 +179,15 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self,
-                 in_channels: int, hidden_channels: int, out_channels: int,
-                 res_channels: int, nb_res_layers: int,
-                 upscale_factor: int,
-                 ):
+    def __init__(
+            self,
+            in_channels: int,
+            hidden_channels: int,
+            out_channels: int,
+            res_channels: int,
+            nb_res_layers: int,
+            upscale_factor: int,
+    ):
         super(Decoder, self).__init__()
         assert log2(upscale_factor) % 1 == 0, "Downscale must be a power of 2"
         upscale_steps = int(log2(upscale_factor))
@@ -188,11 +195,13 @@ class Decoder(nn.Module):
         layers.append(ResidualStack(hidden_channels, res_channels, nb_res_layers))
         c_channel, n_channel = hidden_channels, hidden_channels // 2
         for _ in range(upscale_steps):
-            layers.append(nn.Sequential(
-                nn.ConvTranspose2d(c_channel, n_channel, 4, stride=2, padding=1),
-                nn.BatchNorm2d(n_channel),
-                nn.ReLU(inplace=True),
-            ))
+            layers.append(
+                nn.Sequential(
+                    nn.ConvTranspose2d(c_channel, n_channel, 4, stride=2, padding=1),
+                    nn.BatchNorm2d(n_channel),
+                    nn.ReLU(inplace=True),
+                )
+            )
             c_channel, n_channel = n_channel, out_channels
         layers.append(nn.Conv2d(c_channel, n_channel, 3, stride=1, padding=1))
         layers.append(nn.BatchNorm2d(n_channel))
@@ -208,7 +217,7 @@ class Decoder(nn.Module):
     Almost directly taken from https://github.com/rosinality/vq-vae-2-pytorch/blob/master/vqvae.py
     No reason to reinvent this rather complex mechanism.
 
-    Essentially handles the "discrete" part of the network, and training through EMA rather than 
+    Essentially handles the "discrete" part of the network, and training through EMA rather than
     third term in loss function.
 """
 
@@ -225,11 +234,15 @@ class CodeLayer(nn.Module):
 
         embed = torch.randn(embed_dim, nb_entries, dtype=torch.float32)
         self.register_buffer("embed", embed)
-        self.register_buffer("cluster_size", torch.zeros(nb_entries, dtype=torch.float32))
+        self.register_buffer(
+            "cluster_size", torch.zeros(nb_entries, dtype=torch.float32)
+        )
         self.register_buffer("embed_avg", embed.clone())
 
     @torch.cuda.amp.autocast(enabled=False)
-    def forward(self, x: torch.FloatTensor) -> Tuple[torch.FloatTensor, float, torch.LongTensor]:
+    def forward(
+            self, x: torch.FloatTensor
+    ) -> Tuple[torch.FloatTensor, float, torch.LongTensor]:
         x = self.conv_in(x.float()).permute(0, 2, 3, 1)
         flatten = x.reshape(-1, self.dim)
 
@@ -249,7 +262,9 @@ class CodeLayer(nn.Module):
         )  # shape: (flatten.shape,embedding_shape) (H*W,1200)
         # dist = dist + cos_d
         _, embed_ind = (-dist).max(1)  # shape (H*W,1200)
-        embed_onehot = F.one_hot(embed_ind, self.n_embed).type(flatten.dtype)  # shape (H*W,1200)
+        embed_onehot = F.one_hot(embed_ind, self.n_embed).type(
+            flatten.dtype
+        )  # shape (H*W,1200)
         embed_ind = embed_ind.view(*x.shape[:-1])
         quantize = self.embed_code(embed_ind)
 
@@ -288,7 +303,9 @@ class Upscaler(nn.Module):
             upscale_steps = int(log2(sr))
             layers = []
             for _ in range(upscale_steps):
-                layers.append(nn.ConvTranspose2d(embed_dim, embed_dim, 4, stride=2, padding=1))
+                layers.append(
+                    nn.ConvTranspose2d(embed_dim, embed_dim, 4, stride=2, padding=1)
+                )
                 layers.append(nn.BatchNorm2d(embed_dim))
                 layers.append(nn.ReLU(inplace=True))
             self.stages.append(nn.Sequential(*layers))
@@ -305,38 +322,76 @@ class Upscaler(nn.Module):
 
 
 class MVQVAE(nn.Module):
-    def __init__(self,
-                 in_channels: int = 3,
-                 hidden_channels: int = 128,
-                 res_channels: int = 32,
-                 nb_res_layers: int = 2,
-                 nb_levels: int = 3,
-                 embed_dim: int = 64,
-                 nb_entries: int = 512,
-                 scaling_rates=[8, 4, 2]
-                 ):
+    def __init__(
+            self,
+            in_channels: int = 3,
+            hidden_channels: int = 128,
+            res_channels: int = 32,
+            nb_res_layers: int = 2,
+            nb_levels: int = 3,
+            embed_dim: int = 64,
+            nb_entries: int = 512,
+            scaling_rates=[8, 4, 2],
+    ):
         super(MVQVAE, self).__init__()
         self.nb_levels = nb_levels
-        assert len(scaling_rates) == nb_levels, "Number of scaling rates not equal to number of levels!"
+        assert (
+                len(scaling_rates) == nb_levels
+        ), "Number of scaling rates not equal to number of levels!"
 
         self.encoders = nn.ModuleList(
-            [Encoder(in_channels, hidden_channels, res_channels, nb_res_layers, scaling_rates[0])])
+            [
+                Encoder(
+                    in_channels,
+                    hidden_channels,
+                    res_channels,
+                    nb_res_layers,
+                    scaling_rates[0],
+                )
+            ]
+        )
         for i, sr in enumerate(scaling_rates[1:]):
-            self.encoders.append(Encoder(hidden_channels, hidden_channels, res_channels, nb_res_layers, sr))
+            self.encoders.append(
+                Encoder(
+                    hidden_channels, hidden_channels, res_channels, nb_res_layers, sr
+                )
+            )
         self.codebooks = nn.ModuleList()
         for i in range(nb_levels - 1):
-            self.codebooks.append(CodeLayer(hidden_channels + embed_dim, embed_dim, nb_entries))
+            self.codebooks.append(
+                CodeLayer(hidden_channels + embed_dim, embed_dim, nb_entries)
+            )
         self.codebooks.append(CodeLayer(hidden_channels, embed_dim, nb_entries))
 
-        self.decoders = nn.ModuleList([Decoder(embed_dim * nb_levels, hidden_channels, in_channels, res_channels,
-                                               nb_res_layers, scaling_rates[0])])
+        self.decoders = nn.ModuleList(
+            [
+                Decoder(
+                    embed_dim * nb_levels,
+                    hidden_channels,
+                    in_channels,
+                    res_channels,
+                    nb_res_layers,
+                    scaling_rates[0],
+                )
+            ]
+        )
         for i, sr in enumerate(scaling_rates[1:]):
             self.decoders.append(
-                Decoder(embed_dim * (nb_levels - 1 - i), hidden_channels, embed_dim, res_channels, nb_res_layers, sr))
+                Decoder(
+                    embed_dim * (nb_levels - 1 - i),
+                    hidden_channels,
+                    embed_dim,
+                    res_channels,
+                    nb_res_layers,
+                    sr,
+                )
+            )
 
         self.upscalers = nn.ModuleList()
         for i in range(nb_levels - 1):
-            self.upscalers.append(Upscaler(embed_dim, scaling_rates[1:len(scaling_rates) - i][::-1]))
+            self.upscalers.append(
+                Upscaler(embed_dim, scaling_rates[1: len(scaling_rates) - i][::-1])
+            )
 
     def forward(self, x, verbose=False):
         encoder_outputs = []
@@ -361,13 +416,18 @@ class MVQVAE(nn.Module):
             codebook, decoder = self.codebooks[l], self.decoders[l]
 
             if len(decoder_outputs):  # if we have previous levels to condition on
-                code_q, code_d, emb_id = codebook(torch.cat([encoder_outputs[l], decoder_outputs[-1]], axis=1))
+                code_q, code_d, emb_id = codebook(
+                    torch.cat([encoder_outputs[l], decoder_outputs[-1]], axis=1)
+                )
             else:
                 code_q, code_d, emb_id = codebook(encoder_outputs[l])
             diffs.append(code_d)
             id_outputs.append(emb_id)
 
-            code_outputs = [self.upscalers[i](c, upscale_counts[i]) for i, c in enumerate(code_outputs)]
+            code_outputs = [
+                self.upscalers[i](c, upscale_counts[i])
+                for i, c in enumerate(code_outputs)
+            ]
             upscale_counts = [u + 1 for u in upscale_counts]
             decoder_outputs.append(decoder(torch.cat([code_q, *code_outputs], axis=1)))
 
@@ -387,7 +447,10 @@ class MVQVAE(nn.Module):
         for l in range(self.nb_levels - 1, -1, -1):
             codebook, decoder = self.codebooks[l], self.decoders[l]
             code_q = codebook.embed_code(cs[l]).permute(0, 3, 1, 2)
-            code_outputs = [self.upscalers[i](c, upscale_counts[i]) for i, c in enumerate(code_outputs)]
+            code_outputs = [
+                self.upscalers[i](c, upscale_counts[i])
+                for i, c in enumerate(code_outputs)
+            ]
             upscale_counts = [u + 1 for u in upscale_counts]
             decoder_outputs.append(decoder(torch.cat([code_q, *code_outputs], axis=1)))
 
@@ -405,26 +468,24 @@ def equal(x, y):
     return (((x - y).abs() < 1e-5).float()).mean()
 
 
+from einx import get_at
+from einops import rearrange
+from matplotlib import colormaps
+from matplotlib.colors import ListedColormap
+import numpy as np
+import matplotlib.pyplot as plt
+import math
+from einops import reduce
+
+
+def func():
+    return 1
+
+
 if __name__ == "__main__":
-    data = torch.randn(10, 30, 40)
-    # convert float to torch.Tensor
-    embed = nn.Embedding(10, 40)
-    cx = torch.sum(data)
-    print(cx)
-    print(embed.weight.shape)
-    one_hot = F.one_hot(torch.tensor([1, 2, 3, 4, 5, 6, 7, 8, 9, 0]), num_classes=10)
-    x = torch.randn(40, 80)
-    y = torch.randn(70, 80)
-    dist = torch.cdist(x, y, p=2.0)
-    min_encodings = torch.argmin(dist, dim=1)
-    print(min_encodings)
-    min_encoding_indices = torch.argmin(dist, dim=1).unsqueeze(1)  # (encoded_feat size,1)
-    min_encodings = torch.zeros(40, 70)  # (encoded_feat size,embedding_size)
-    min_encodings.scatter_(1, min_encoding_indices, 1)  # one-hot  like
-    print(min_encodings.shape)
-    my_min_encodings = F.one_hot(min_encoding_indices.squeeze(), num_classes=70)
-    print(my_min_encodings.shape)
-    print(equal(min_encodings, my_min_encodings))
+    x = [torch.randn(10, 20) for _ in range(10)]
+    mean_x = reduce(x, 'b n d -> n d', 'mean')
+    #  mean x
 
     # dist_2 = torch.sqrt(
     #     torch.sum(x ** 2, dim=1, keepdim=True) +

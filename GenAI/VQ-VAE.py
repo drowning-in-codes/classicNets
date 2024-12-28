@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class ResidualLayer(nn.Module):
@@ -19,9 +19,18 @@ class ResidualLayer(nn.Module):
         super().__init__()
         self.res_block = nn.Sequential(
             nn.ReLU(),
-            nn.Conv2d(in_dim, res_h_dim, kernel_size=3, padding=1, ),
+            nn.Conv2d(
+                in_dim,
+                res_h_dim,
+                kernel_size=3,
+                padding=1,
+            ),
             nn.ReLU(),
-            nn.Conv2d(res_h_dim, h_dim, kernel_size=1, )
+            nn.Conv2d(
+                res_h_dim,
+                h_dim,
+                kernel_size=1,
+            ),
         )
 
     def forward(self, x):
@@ -50,11 +59,17 @@ class Decoder(nn.Module):
         kernel = 4
         stride = 2
         self.inverse_conv_stack = nn.Sequential(
-            nn.ConvTranspose2d(in_dim, h_dim, kernel_size=kernel - 1, stride=stride - 1, padding=1),
+            nn.ConvTranspose2d(
+                in_dim, h_dim, kernel_size=kernel - 1, stride=stride - 1, padding=1
+            ),
             ResidualStack(h_dim, h_dim, res_h_dim, n_res_layers),
-            nn.ConvTranspose2d(h_dim, h_dim // 2, kernel_size=kernel, stride=stride, padding=1),
+            nn.ConvTranspose2d(
+                h_dim, h_dim // 2, kernel_size=kernel, stride=stride, padding=1
+            ),
             nn.ReLU(),
-            nn.ConvTranspose2d(h_dim // 2, 3, kernel_size=kernel, stride=stride, padding=1)
+            nn.ConvTranspose2d(
+                h_dim // 2, 3, kernel_size=kernel, stride=stride, padding=1
+            ),
         )
 
     def forward(self, x):
@@ -67,12 +82,16 @@ class Encoder(nn.Module):
         kernel = 4
         stride = 2
 
-        self.conv_stack = nn.Sequential(nn.Conv2d(in_dim, h_dim // 2, kernel_size=kernel, stride=stride, padding=1),
-                                        nn.ReLU(),
-                                        nn.Conv2d(h_dim // 2, h_dim, kernel_size=kernel, stride=stride, padding=1),
-                                        nn.ReLU(),
-                                        nn.Conv2d(h_dim, h_dim, kernel_size=kernel - 1, stride=stride - 1, padding=1),
-                                        ResidualStack(h_dim, h_dim, res_h_dim, n_res_layers))
+        self.conv_stack = nn.Sequential(
+            nn.Conv2d(in_dim, h_dim // 2, kernel_size=kernel, stride=stride, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(h_dim // 2, h_dim, kernel_size=kernel, stride=stride, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(
+                h_dim, h_dim, kernel_size=kernel - 1, stride=stride - 1, padding=1
+            ),
+            ResidualStack(h_dim, h_dim, res_h_dim, n_res_layers),
+        )
 
     def forward(self, x):
         return self.conv_stack(x)
@@ -80,19 +99,19 @@ class Encoder(nn.Module):
 
 class VectorQuantizer(nn.Module):
     """
-           Inputs the output of the encoder network z and maps it to a discrete
-           one-hot vector that is the index of the closest embedding vector e_j
+    Inputs the output of the encoder network z and maps it to a discrete
+    one-hot vector that is the index of the closest embedding vector e_j
 
-           z (continuous) -> z_q (discrete)
+    z (continuous) -> z_q (discrete)
 
-           z.shape = (batch, channel, height, width)
+    z.shape = (batch, channel, height, width)
 
-           quantization pipeline:
+    quantization pipeline:
 
-               1. get encoder input (B,C,H,W)
-               2. flatten input to (B*H*W,C)
+        1. get encoder input (B,C,H,W)
+        2. flatten input to (B*H*W,C)
 
-           """
+    """
 
     def __init__(self, n_e, e_dim, beta):
         super().__init__()
@@ -110,19 +129,27 @@ class VectorQuantizer(nn.Module):
 
         # calculate distance ||z_e - e_j  || e is the embedding
         # [B*H*W,K]
-        d = torch.sum(z_flattened ** 2, dim=1, keepdim=True) + torch.sum(self.embedding.weight ** 2,
-                                                                         dim=1) - 2 * torch.matmul(z_flattened,
-                                                                                                   self.embedding.weight.t())
+        d = (
+            torch.sum(z_flattened**2, dim=1, keepdim=True)
+            + torch.sum(self.embedding.weight**2, dim=1)
+            - 2 * torch.matmul(z_flattened, self.embedding.weight.t())
+        )
 
         # find the minimal distance index  ranges [0...K-1] K(n_e) is the number of embeddings
         min_encoding_indices = torch.argmin(d, dim=1).unsqueeze(1)  # [B*H*W,1]
         # [B*H*W,K]  # K(n_e) is the number of embeddings  0 or 1
-        min_encodings = torch.zeros(min_encoding_indices.shape[0], self.n_e).to(device=device)
+        min_encodings = torch.zeros(min_encoding_indices.shape[0], self.n_e).to(
+            device=device
+        )
         min_encodings.scatter_(1, min_encoding_indices, 1)
 
-        z_q = torch.matmul(min_encodings, self.embedding.weight).view(z.shape)  # [B*H*W,K] * [K,D] = [B*H*W,D]
+        z_q = torch.matmul(min_encodings, self.embedding.weight).view(
+            z.shape
+        )  # [B*H*W,K] * [K,D] = [B*H*W,D]
         # 使用detach,计算时不会影响梯度
-        loss = torch.mean((z_q.detach() - z) ** 2) + self.beta * torch.mean((z_q - z.detach()) ** 2)
+        loss = torch.mean((z_q.detach() - z) ** 2) + self.beta * torch.mean(
+            (z_q - z.detach()) ** 2
+        )
 
         # preserve gradients
         z_q = z + (z_q - z).detach()  # 在反向传播时将z_q的梯度给z
@@ -138,11 +165,22 @@ class VectorQuantizer(nn.Module):
 
 
 class VQVAE(nn.Module):
-    def __init__(self, h_dim, res_h_dim, n_res_layers, n_embeddings, embedding_dim, beta, save_img_embedding_map=False):
+    def __init__(
+        self,
+        h_dim,
+        res_h_dim,
+        n_res_layers,
+        n_embeddings,
+        embedding_dim,
+        beta,
+        save_img_embedding_map=False,
+    ):
         super().__init__()
         # encode image into continuous latent space
         self.encoder = Encoder(3, h_dim, n_res_layers, res_h_dim)
-        self.pre_quantization_conv = nn.Conv2d(h_dim, embedding_dim, kernel_size=1, stride=1)
+        self.pre_quantization_conv = nn.Conv2d(
+            h_dim, embedding_dim, kernel_size=1, stride=1
+        )
         # pass continuous latent vector through discretization bottleneck
         self.vector_quantization = VectorQuantizer(n_embeddings, embedding_dim, beta)
         # decode the discrete latent representation
@@ -159,9 +197,9 @@ class VQVAE(nn.Module):
         embedding_loss, z_q, perplexity, _, _ = self.vector_quantization(z_e)
         x_hat = self.decoder(z_q)
         if verbose:
-            print('original data shape:', x.shape)
-            print('encoded data shape:', z_e.shape)
-            print('recon data shape:', x_hat.shape)
+            print("original data shape:", x.shape)
+            print("encoded data shape:", z_e.shape)
+            print("recon data shape:", x_hat.shape)
             assert False
 
         return embedding_loss, x_hat, perplexity

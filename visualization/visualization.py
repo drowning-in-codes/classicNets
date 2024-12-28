@@ -12,15 +12,15 @@ from torchvision import transforms
 
 
 def rgb_loader(path):
-    with open(path, 'rb') as f:
+    with open(path, "rb") as f:
         with Image.open(f) as img:
-            return img.convert('RGB')
+            return img.convert("RGB")
 
 
 def postprocess_activations(activations):
     output = activations
     output *= 255
-    return 255 - output.astype('uint8')
+    return 255 - output.astype("uint8")
 
 
 def apply_heatmap(weights, img):
@@ -38,23 +38,34 @@ def get_heatmaps(activations, img):
 def visualize(args):
     # Prepare Model
     config = CONFIGS["ViT-B_16"]
-    model = VisionTransformer(config, num_classes=args.num_classes,
-                              zero_head=False, img_size=args.img_size, vis=True)
+    model = VisionTransformer(
+        config,
+        num_classes=args.num_classes,
+        zero_head=False,
+        img_size=args.img_size,
+        vis=True,
+    )
 
-    model_checkpoint = os.path.join(args.output_dir, args.dataset, "%s_checkpoint.bin" % args.name)
+    model_checkpoint = os.path.join(
+        args.output_dir, args.dataset, "%s_checkpoint.bin" % args.name
+    )
     model.load_state_dict(torch.load(model_checkpoint))
     model.eval()
 
     ad_net = AdversarialNetwork(config.hidden_size // 12, config.hidden_size // 12)
-    ad_checkpoint = os.path.join(args.output_dir, args.dataset, "%s_checkpoint_adv.bin" % args.name)
+    ad_checkpoint = os.path.join(
+        args.output_dir, args.dataset, "%s_checkpoint_adv.bin" % args.name
+    )
     ad_net.load_state_dict(torch.load(ad_checkpoint))
     ad_net.eval()
 
-    transform = transforms.Compose([
-        transforms.Resize((args.img_size, args.img_size)),
-        transforms.ToTensor(),
-        Normalize(meanfile='./data/ilsvrc_2012_mean.npy')
-    ])
+    transform = transforms.Compose(
+        [
+            transforms.Resize((args.img_size, args.img_size)),
+            transforms.ToTensor(),
+            Normalize(meanfile="./data/ilsvrc_2012_mean.npy"),
+        ]
+    )
 
     image_list = open(args.image_path).readlines()
     len_ = len(image_list)
@@ -96,30 +107,40 @@ def visualize(args):
         result = get_heatmaps(mask, np.asarray(im))
 
         _ = plt.imshow(result)
-        plt.axis('off')
+        plt.axis("off")
 
-        save_name = "att_" + '_'.join(image_path.split('/')[-2:])
+        save_name = "att_" + "_".join(image_path.split("/")[-2:])
         save_path = os.path.join(args.save_dir, args.dataset, args.name)
         os.makedirs(save_path, exist_ok=True)
-        plt.savefig(os.path.join(save_path, save_name), bbox_inches='tight')
+        plt.savefig(os.path.join(save_path, save_name), bbox_inches="tight")
         plt.close()
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--name", required=True,
-                        help="Name of this run. Used for monitoring.")
-    parser.add_argument("--dataset", default="svhn2mnist",
-                        help="Which downstream task.")
-    parser.add_argument("--img_size", default=224, type=int,
-                        help="Resolution size")
-    parser.add_argument("--num_classes", default=10, type=int,
-                        help="Number of classes in the dataset.")
+    parser.add_argument(
+        "--name", required=True, help="Name of this run. Used for monitoring."
+    )
+    parser.add_argument(
+        "--dataset", default="svhn2mnist", help="Which downstream task."
+    )
+    parser.add_argument("--img_size", default=224, type=int, help="Resolution size")
+    parser.add_argument(
+        "--num_classes", default=10, type=int, help="Number of classes in the dataset."
+    )
     parser.add_argument("--image_path", help="Path of the test image.")
-    parser.add_argument("--output_dir", default="output", type=str,
-                        help="The output directory where checkpoints will be written.")
-    parser.add_argument("--save_dir", default="attention_visual", type=str,
-                        help="The directory where attention maps will be saved.")
+    parser.add_argument(
+        "--output_dir",
+        default="output",
+        type=str,
+        help="The output directory where checkpoints will be written.",
+    )
+    parser.add_argument(
+        "--save_dir",
+        default="attention_visual",
+        type=str,
+        help="The directory where attention maps will be saved.",
+    )
     args = parser.parse_args()
     visualize(args)
 

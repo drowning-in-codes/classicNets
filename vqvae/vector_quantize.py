@@ -49,10 +49,14 @@ def Sequential(*modules):
 
 
 def cdist(x, y):
-    x2 = reduce(x ** 2, '...d->...', 'sum')
-    y2 = reduce(y ** 2, '...d->...', 'sum')
-    xy = einsum('b i d,b j d -> b i j', x, y) * -2
-    return (rearrange(x2, 'b i -> b i 1') + rearrange(y2, 'b j -> b 1 j') + xy).clamp(min=0).sqrt()
+    x2 = reduce(x**2, "...d->...", "sum")
+    y2 = reduce(y**2, "...d->...", "sum")
+    xy = einsum("b i d,b j d -> b i j", x, y) * -2
+    return (
+        (rearrange(x2, "b i -> b i 1") + rearrange(y2, "b j -> b 1 j") + xy)
+        .clamp(min=0)
+        .sqrt()
+    )
 
 
 def log(t, eps=1e-20):
@@ -64,7 +68,7 @@ def entropy(prob, eps=1e-5):
 
 
 def ema_inplace(old, new, decay):
-    is_mps = str(old.device).startswith('mps:')
+    is_mps = str(old.device).startswith("mps:")
     if not is_mps:
         old.lerp_(new, 1 - decay)
     else:
@@ -75,7 +79,7 @@ def pack_one(t, pattern):
     packed, ps = pack([t], pattern)
 
     def unpack_one(to_unpack, unpack_pattern=None):
-        unpacked, = unpack(to_unpack, ps, default(unpack_pattern, pattern))
+        (unpacked,) = unpack(to_unpack, ps, default(unpack_pattern, pattern))
         return unpacked
 
     return packed, unpack_one

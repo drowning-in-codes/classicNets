@@ -1,7 +1,7 @@
 class Value:
-    """ stores a single scalar value and its gradient """
+    """stores a single scalar value and its gradient"""
 
-    def __init__(self, data, _children=(), _op=''):
+    def __init__(self, data, _children=(), _op=""):
         self.data = data
         self.grad = 0
         # internal variables used for autograd graph construction
@@ -11,7 +11,7 @@ class Value:
 
     def __add__(self, other):
         other = other if isinstance(other, Value) else Value(other)
-        out = Value(self.data + other.data, (self, other), '+')
+        out = Value(self.data + other.data, (self, other), "+")
 
         def _backward():
             self.grad += out.grad
@@ -23,7 +23,7 @@ class Value:
 
     def __mul__(self, other):
         other = other if isinstance(other, Value) else Value(other)
-        out = Value(self.data * other.data, (self, other), '*')
+        out = Value(self.data * other.data, (self, other), "*")
 
         def _backward():
             self.grad += other.data * out.grad
@@ -34,8 +34,10 @@ class Value:
         return out
 
     def __pow__(self, other):
-        assert isinstance(other, (int, float)), "only supporting int/float powers for now"
-        out = Value(self.data ** other, (self,), f'**{other}')
+        assert isinstance(
+            other, (int, float)
+        ), "only supporting int/float powers for now"
+        out = Value(self.data**other, (self,), f"**{other}")
 
         def _backward():
             self.grad += (other * self.data ** (other - 1)) * out.grad
@@ -45,7 +47,7 @@ class Value:
         return out
 
     def relu(self):
-        out = Value(0 if self.data < 0 else self.data, (self,), 'ReLU')
+        out = Value(0 if self.data < 0 else self.data, (self,), "ReLU")
 
         def _backward():
             self.grad += (out.data > 0) * out.grad
@@ -90,10 +92,10 @@ class Value:
         return self * other
 
     def __truediv__(self, other):  # self / other
-        return self * other ** -1
+        return self * other**-1
 
     def __rtruediv__(self, other):  # other / self
-        return other * self ** -1
+        return other * self**-1
 
     def __repr__(self):
         return f"Value(data={self.data}, grad={self.grad})"

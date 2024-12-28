@@ -15,7 +15,9 @@ import torch.nn.functional as F
 class GroupNorm(nn.Module):
     def __init__(self, channels):
         super(GroupNorm, self).__init__()
-        self.gn = nn.GroupNorm(num_groups=32, num_channels=channels, eps=1e-6, affine=True)
+        self.gn = nn.GroupNorm(
+            num_groups=32, num_channels=channels, eps=1e-6, affine=True
+        )
 
     def forward(self, x):
         return self.gn(x)
@@ -37,7 +39,7 @@ class ResidualBlock(nn.Module):
             nn.Conv2d(in_channels, out_channels, 3, 1, 1),
             GroupNorm(out_channels),
             Swish(),
-            nn.Conv2d(out_channels, out_channels, 3, 1, 1)
+            nn.Conv2d(out_channels, out_channels, 3, 1, 1),
         )
 
         if in_channels != out_channels:
@@ -145,20 +147,26 @@ class Codebook(nn.Module):
         self.beta = args.beta
 
         self.embedding = nn.Embedding(self.num_codebook_vectors, self.latent_dim)
-        self.embedding.weight.data.uniform_(-1.0 / self.num_codebook_vectors, 1.0 / self.num_codebook_vectors)
+        self.embedding.weight.data.uniform_(
+            -1.0 / self.num_codebook_vectors, 1.0 / self.num_codebook_vectors
+        )
 
     def forward(self, z):
         z = z.permute(0, 2, 3, 1).contiguous()
         z_flattened = z.view(-1, self.latent_dim)
 
-        d = torch.sum(z_flattened ** 2, dim=1, keepdim=True) + \
-            torch.sum(self.embedding.weight ** 2, dim=1) - \
-            2 * (torch.matmul(z_flattened, self.embedding.weight.t()))
+        d = (
+            torch.sum(z_flattened**2, dim=1, keepdim=True)
+            + torch.sum(self.embedding.weight**2, dim=1)
+            - 2 * (torch.matmul(z_flattened, self.embedding.weight.t()))
+        )
 
         min_encoding_indices = torch.argmin(d, dim=1)
         z_q = self.embedding(min_encoding_indices).view(z.shape)
 
-        loss = torch.mean((z_q.detach() - z) ** 2) + self.beta * torch.mean((z_q - z.detach()) ** 2)
+        loss = torch.mean((z_q.detach() - z) ** 2) + self.beta * torch.mean(
+            (z_q - z.detach()) ** 2
+        )
 
         z_q = z + (z_q - z).detach()
 
@@ -176,10 +184,12 @@ class Decoder(nn.Module):
         resolution = 16
 
         in_channels = channels[0]
-        layers = [nn.Conv2d(args.latent_dim, in_channels, 3, 1, 1),
-                  ResidualBlock(in_channels, in_channels),
-                  NonLocalBlock(in_channels),
-                  ResidualBlock(in_channels, in_channels)]
+        layers = [
+            nn.Conv2d(args.latent_dim, in_channels, 3, 1, 1),
+            ResidualBlock(in_channels, in_channels),
+            NonLocalBlock(in_channels),
+            ResidualBlock(in_channels, in_channels),
+        ]
 
         for i in range(len(channels)):
             out_channels = channels[i]
@@ -207,13 +217,19 @@ class VQGAN(nn.Module):
         self.encoder = Encoder(args).to(device=args.device)
         self.decoder = Decoder(args).to(device=args.device)
         self.codebook = Codebook(args).to(device=args.device)
-        self.quant_conv = nn.Conv2d(args.latent_dim, args.latent_dim, 1).to(device=args.device)
-        self.post_quant_conv = nn.Conv2d(args.latent_dim, args.latent_dim, 1).to(device=args.device)
+        self.quant_conv = nn.Conv2d(args.latent_dim, args.latent_dim, 1).to(
+            device=args.device
+        )
+        self.post_quant_conv = nn.Conv2d(args.latent_dim, args.latent_dim, 1).to(
+            device=args.device
+        )
 
     def forward(self, imgs):
         encoded_images = self.encoder(imgs)
         quant_conv_encoded_images = self.quant_conv(encoded_images)
-        codebook_mapping, codebook_indices, q_loss = self.codebook(quant_conv_encoded_images)
+        codebook_mapping, codebook_indices, q_loss = self.codebook(
+            quant_conv_encoded_images
+        )
         post_quant_conv_mapping = self.post_quant_conv(codebook_mapping)
         decoded_images = self.decoder(post_quant_conv_mapping)
 
@@ -222,7 +238,9 @@ class VQGAN(nn.Module):
     def encode(self, imgs):
         encoded_images = self.encoder(imgs)
         quant_conv_encoded_images = self.quant_conv(encoded_images)
-        codebook_mapping, codebook_indices, q_loss = self.codebook(quant_conv_encoded_images)
+        codebook_mapping, codebook_indices, q_loss = self.codebook(
+            quant_conv_encoded_images
+        )
         return codebook_mapping, codebook_indices, q_loss
 
     def decode(self, z):
@@ -233,15 +251,19 @@ class VQGAN(nn.Module):
     def calculate_lambda(self, perceptual_loss, gan_loss):
         last_layer = self.decoder.model[-1]
         last_layer_weight = last_layer.weight
-        perceptual_loss_grads = torch.autograd.grad(perceptual_loss, last_layer_weight, retain_graph=True)[0]
-        gan_loss_grads = torch.autograd.grad(gan_loss, last_layer_weight, retain_graph=True)[0]
+        perceptual_loss_grads = torch.autograd.grad(
+            perceptual_loss, last_layer_weight, retain_graph=True
+        )[0]
+        gan_loss_grads = torch.autograd.grad(
+            gan_loss, last_layer_weight, retain_graph=True
+        )[0]
 
         λ = torch.norm(perceptual_loss_grads) / (torch.norm(gan_loss_grads) + 1e-4)
         λ = torch.clamp(λ, 0, 1e4).detach()
         return 0.8 * λ
 
     @staticmethod
-    def adopt_weight(disc_factor, i, threshold, value=0.):
+    def adopt_weight(disc_factor, i, threshold, value=0.0):
         if i < threshold:
             disc_factor = value
         return disc_factor
