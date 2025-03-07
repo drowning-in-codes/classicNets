@@ -44,32 +44,36 @@ def l2norm(t, dim=-1, eps=1e-6):
 
 # rotation trick related
 
+
 def efficient_rotation_trick_transform(u, q, e):
     """
     4.2 in https://arxiv.org/abs/2410.06424
     """
-    e = rearrange(e, 'b d -> b 1 d')
+    e = rearrange(e, "b d -> b 1 d")
     w = l2norm(u + q, dim=1).detach()
 
     return (
-            e -
-            2 * (e @ rearrange(w, 'b d -> b d 1') @ rearrange(w, 'b d -> b 1 d')) +
-            2 * (e @ rearrange(u, 'b d -> b d 1').detach() @ rearrange(q, 'b d -> b 1 d').detach())
+        e
+        - 2 * (e @ rearrange(w, "b d -> b d 1") @ rearrange(w, "b d -> b 1 d"))
+        + 2
+        * (
+            e
+            @ rearrange(u, "b d -> b d 1").detach()
+            @ rearrange(q, "b d -> b 1 d").detach()
+        )
     )
 
 
 def rotate_to(src, tgt):
     # rotation trick STE (https://arxiv.org/abs/2410.06424) to get gradients through VQ layer.
-    src, inverse = pack_one(src, '* d')
-    tgt, _ = pack_one(tgt, '* d')
+    src, inverse = pack_one(src, "* d")
+    tgt, _ = pack_one(tgt, "* d")
 
     norm_src = src.norm(dim=-1, keepdim=True)
     norm_tgt = tgt.norm(dim=-1, keepdim=True)
 
     rotated_tgt = efficient_rotation_trick_transform(
-        safe_div(src, norm_src),
-        safe_div(tgt, norm_tgt),
-        src
+        safe_div(src, norm_src), safe_div(tgt, norm_tgt), src
     ).squeeze()
 
     rotated = rotated_tgt * safe_div(norm_tgt, norm_src).detach()
@@ -79,23 +83,25 @@ def rotate_to(src, tgt):
 
 class SimVQ(nn.Module):
     def __init__(
-            self,
-            dim,
-            codebook_size,
-            codebook_transform: Module | None = None,
-            init_fn: Callable = identity,
-            channel_first=False,
-            rotation_trick=True,
-            input_to_quantize_commit_loss_weight=.25,
-            commitment_weight=1.,
-            frozen_codebook_dim=None,
+        self,
+        dim,
+        codebook_size,
+        codebook_transform: Module | None = None,
+        init_fn: Callable = identity,
+        channel_first=False,
+        rotation_trick=True,
+        input_to_quantize_commit_loss_weight=0.25,
+        commitment_weight=1.0,
+        frozen_codebook_dim=None,
     ):
         super().__init__()
         self.codebook_size = codebook_size
         self.channel_first = channel_first
 
         frozen_codebook_dim = default(frozen_codebook_dim, dim)
-        codebook = torch.randn(codebook_size, frozen_codebook_dim) * (frozen_codebook_dim ** -.5)
+        codebook = torch.randn(codebook_size, frozen_codebook_dim) * (
+            frozen_codebook_dim**-0.5
+        )
 
         codebook = init_fn(codebook)
 
@@ -117,13 +123,13 @@ class SimVQ(nn.Module):
         quantized = self.code_transform(frozen_codes)
 
         if self.channel_first:
-            quantized = rearrange(quantized, 'b ... d -> b d ...')
+            quantized = rearrange(quantized, "b ... d -> b d ...")
         return quantized
 
     def forward(self, x):
         if self.channel_first:
-            x = rearrange(x, 'b ... d -> b d ...')
-        x, inverse_pack = pack_one(x, 'b * d')
+            x = rearrange(x, "b ... d -> b d ...")
+        x, inverse_pack = pack_one(x, "b * d")
         implicit_codebook = self.codebook
         with torch.no_grad():
             dist = torch.cdist(x, implicit_codebook)
@@ -134,10 +140,14 @@ class SimVQ(nn.Module):
         if self.rotation_trick:
             quantized = rotate_to(x, quantized)
         else:
-            commit_loss = (commit_loss + F.mse_loss(x, quantized.detach()) * self.input_to_quantize_commit_loss_weight)
+            commit_loss = (
+                commit_loss
+                + F.mse_loss(x, quantized.detach())
+                * self.input_to_quantize_commit_loss_weight
+            )
             quantized = (quantized - x).detach() + x
         quantized = inverse_pack(quantized)
-        indices = inverse_pack(indices, 'b *')
+        indices = inverse_pack(indices, "b *")
         if self.channel_first:
-            quantized = rearrange(quantized, 'b ... d-> b d...')
+            quantized = rearrange(quantized, "b ... d-> b d...")
         return quantized, indices, commit_loss * self.commitment_weight

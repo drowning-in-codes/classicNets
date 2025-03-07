@@ -36,12 +36,12 @@ class ResidualStack(HelperModule):
 
 class Encoder(HelperModule):
     def build(
-        self,
-        in_channels,
-        hidden_channels,
-        res_channels,
-        nb_res_layers,
-        downscale_factor,
+            self,
+            in_channels,
+            hidden_channels,
+            res_channels,
+            nb_res_layers,
+            downscale_factor,
     ):
         assert log2(
             downscale_factor
@@ -70,13 +70,13 @@ class Encoder(HelperModule):
 
 class Decoder(HelperModule):
     def build(
-        self,
-        in_channels,
-        hidden_channels,
-        out_channels,
-        res_channels,
-        nb_res_layers,
-        upscale_factor,
+            self,
+            in_channels,
+            hidden_channels,
+            out_channels,
+            res_channels,
+            nb_res_layers,
+            upscale_factor,
     ):
         assert log2(upscale_factor).is_integer(), "upscale_factor must be a power of 2"
         upscale_steps = int(log2(upscale_factor))
@@ -117,14 +117,14 @@ class CodeLayer(HelperModule):
 
     @torch.cuda.amp.autocast(enabled=False)
     def forward(
-        self, x: torch.FloatTensor
+            self, x: torch.FloatTensor
     ) -> Tuple[torch.FloatTensor, float, torch.LongTensor]:
         x = self.conv_in(x.float()).permute(0, 2, 3, 1)
         flatten = x.reshape(-1, self.dim)
         dist = (
-            flatten.pow(2).sum(1, keepdim=True)
-            - 2 * flatten @ self.embed
-            + self.embed.pow(2).sum(0, keepdim=True)
+                flatten.pow(2).sum(1, keepdim=True)
+                - 2 * flatten @ self.embed
+                + self.embed.pow(2).sum(0, keepdim=True)
         )
         _, embed_ind = (-dist).max(1)
         embed_onehot = F.one_hot(embed_ind, self.n_embed).type(flatten.dtype)
@@ -145,7 +145,7 @@ class CodeLayer(HelperModule):
             self.embed_avg.data.mul_(self.decay).add_(embed_sum, alpha=1 - self.decay)
             n = self.cluster_size.sum()
             cluster_size = (
-                (self.cluster_size + self.eps) / (n + self.n_embed * self.eps) * n
+                    (self.cluster_size + self.eps) / (n + self.n_embed * self.eps) * n
             )
             embed_normalized = self.embed_avg / cluster_size.unsqueeze(0)
             self.embed.data.copy_(embed_normalized)
@@ -161,9 +161,9 @@ class CodeLayer(HelperModule):
 
 class Upscaler(HelperModule):
     def build(
-        self,
-        embed_dim: int,
-        scaling_rates: list[int],
+            self,
+            embed_dim: int,
+            scaling_rates: list[int],
     ):
 
         self.stages = nn.ModuleList()
@@ -184,19 +184,19 @@ class Upscaler(HelperModule):
 
 class VQVAE(HelperModule):
     def build(
-        self,
-        in_channels,
-        hidden_channels,
-        res_channels,
-        nb_res_layers,
-        nb_levels,
-        embed_dim,
-        nb_entries,
-        scaling_rates,
+            self,
+            in_channels,
+            hidden_channels,
+            res_channels,
+            nb_res_layers,
+            nb_levels,
+            embed_dim,
+            nb_entries,
+            scaling_rates,
     ):
         self.nb_levels = nb_levels
         assert (
-            len(scaling_rates) == nb_levels
+                len(scaling_rates) == nb_levels
         ), "Number of scaling rates must match number of levels"
         self.encoders = nn.ModuleList(
             [
@@ -243,7 +243,7 @@ class VQVAE(HelperModule):
         self.upscalers = nn.ModuleList()
         for i in range(nb_levels - 1):
             self.upscalers.append(
-                Upscaler(embed_dim, scaling_rates[1 : len(scaling_rates) - i][::-1])
+                Upscaler(embed_dim, scaling_rates[1: len(scaling_rates) - i][::-1])
             )
 
     def forward(self, x):
@@ -251,3 +251,17 @@ class VQVAE(HelperModule):
         code_outpus = []
         decoder_outputs = []
         upscale_outputs = []
+        for i in range(self.nb_levels):
+            x = self.encoders[i](x)
+            encoder_outputs.append(x)
+            if i < self.nb_levels - 1:
+                code_outpus.append(self.codebooks[i](torch.cat([x, encoder_outputs[-2]], dim=1)))
+            else:
+                code_outpus.append(self.codebooks[i](x))
+
+        for i in range(self.nb_levels):
+            if i > 0:
+                x = torch.cat([x, self.upscalers[i - 1](code_outpus[i])], dim=1)
+            x = self.decoders[i](x)
+            decoder_outputs.append(x)
+        return decoder_outputs, code_outpus

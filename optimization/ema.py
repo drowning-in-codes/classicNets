@@ -18,8 +18,8 @@ class EMA:
             if param.requires_grad:
                 assert name in self.shadow
                 new_average = (
-                    1.0 - self.decay
-                ) * param.data + self.decay * self.shadow[name]
+                                      1.0 - self.decay
+                              ) * param.data + self.decay * self.shadow[name]
                 self.shadow[name] = new_average
 
     def apply_shadow(self):
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     # training loop
     epochs = 20
     for i in range(epochs):
-        y = model(x)
+        # y = model(x)
         # train model
         ema.update
     ema.apply_shadow()

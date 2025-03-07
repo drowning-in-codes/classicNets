@@ -11,6 +11,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import random
+from MinkowskiEngine import SparseTensor
 
 
 class MinkowskiGRN(nn.Module):
@@ -71,9 +73,9 @@ class MinkowskiLayerNorm(nn.Module):
     """Channel-wise layer normalization for sparse tensors."""
 
     def __init__(
-        self,
-        normalized_shape,
-        eps=1e-6,
+            self,
+            normalized_shape,
+            eps=1e-6,
     ):
         super(MinkowskiLayerNorm, self).__init__()
         self.ln = nn.LayerNorm(normalized_shape, eps=eps)

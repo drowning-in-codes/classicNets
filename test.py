@@ -45,7 +45,7 @@ class SuperResolutionNet(nn.Module):
         self.conv1 = nn.Conv2d(1, 64, (5, 5), (1, 1), (2, 2))
         self.conv2 = nn.Conv2d(64, 64, (3, 3), (1, 1), (1, 1))
         self.conv3 = nn.Conv2d(64, 32, (3, 3), (1, 1), (1, 1))
-        self.conv4 = nn.Conv2d(32, upscale_factor ** 2, (3, 3), (1, 1), (1, 1))
+        self.conv4 = nn.Conv2d(32, upscale_factor**2, (3, 3), (1, 1), (1, 1))
         self.pixel_shuffle = nn.PixelShuffle(upscale_factor)
 
         self._initialize_weights()
@@ -147,12 +147,12 @@ class ResidualStack(nn.Module):
 
 class Encoder(nn.Module):
     def __init__(
-            self,
-            in_channels: int,
-            hidden_channels: int,
-            res_channels: int,
-            nb_res_layers: int,
-            downscale_factor: int,
+        self,
+        in_channels: int,
+        hidden_channels: int,
+        res_channels: int,
+        nb_res_layers: int,
+        downscale_factor: int,
     ):
         super(Encoder, self).__init__()
         assert log2(downscale_factor) % 1 == 0, "Downscale must be a power of 2"
@@ -180,13 +180,13 @@ class Encoder(nn.Module):
 
 class Decoder(nn.Module):
     def __init__(
-            self,
-            in_channels: int,
-            hidden_channels: int,
-            out_channels: int,
-            res_channels: int,
-            nb_res_layers: int,
-            upscale_factor: int,
+        self,
+        in_channels: int,
+        hidden_channels: int,
+        out_channels: int,
+        res_channels: int,
+        nb_res_layers: int,
+        upscale_factor: int,
     ):
         super(Decoder, self).__init__()
         assert log2(upscale_factor) % 1 == 0, "Downscale must be a power of 2"
@@ -241,7 +241,7 @@ class CodeLayer(nn.Module):
 
     @torch.cuda.amp.autocast(enabled=False)
     def forward(
-            self, x: torch.FloatTensor
+        self, x: torch.FloatTensor
     ) -> Tuple[torch.FloatTensor, float, torch.LongTensor]:
         x = self.conv_in(x.float()).permute(0, 2, 3, 1)
         flatten = x.reshape(-1, self.dim)
@@ -256,9 +256,9 @@ class CodeLayer(nn.Module):
         # TODO: multiple codes per feature? multi-head codebook
 
         dist = (
-                flatten.pow(2).sum(1, keepdim=True)
-                - 2 * flatten @ self.embed
-                + self.embed.pow(2).sum(0, keepdim=True)
+            flatten.pow(2).sum(1, keepdim=True)
+            - 2 * flatten @ self.embed
+            + self.embed.pow(2).sum(0, keepdim=True)
         )  # shape: (flatten.shape,embedding_shape) (H*W,1200)
         # dist = dist + cos_d
         _, embed_ind = (-dist).max(1)  # shape (H*W,1200)
@@ -278,7 +278,7 @@ class CodeLayer(nn.Module):
             self.embed_avg.data.mul_(self.decay).add_(embed_sum, alpha=1 - self.decay)
             n = self.cluster_size.sum()
             cluster_size = (
-                    (self.cluster_size + self.eps) / (n + self.n_embed * self.eps) * n
+                (self.cluster_size + self.eps) / (n + self.n_embed * self.eps) * n
             )
             embed_normalized = self.embed_avg / cluster_size.unsqueeze(0)
             self.embed.data.copy_(embed_normalized)
@@ -323,20 +323,20 @@ class Upscaler(nn.Module):
 
 class MVQVAE(nn.Module):
     def __init__(
-            self,
-            in_channels: int = 3,
-            hidden_channels: int = 128,
-            res_channels: int = 32,
-            nb_res_layers: int = 2,
-            nb_levels: int = 3,
-            embed_dim: int = 64,
-            nb_entries: int = 512,
-            scaling_rates=[8, 4, 2],
+        self,
+        in_channels: int = 3,
+        hidden_channels: int = 128,
+        res_channels: int = 32,
+        nb_res_layers: int = 2,
+        nb_levels: int = 3,
+        embed_dim: int = 64,
+        nb_entries: int = 512,
+        scaling_rates=[8, 4, 2],
     ):
         super(MVQVAE, self).__init__()
         self.nb_levels = nb_levels
         assert (
-                len(scaling_rates) == nb_levels
+            len(scaling_rates) == nb_levels
         ), "Number of scaling rates not equal to number of levels!"
 
         self.encoders = nn.ModuleList(
@@ -390,7 +390,7 @@ class MVQVAE(nn.Module):
         self.upscalers = nn.ModuleList()
         for i in range(nb_levels - 1):
             self.upscalers.append(
-                Upscaler(embed_dim, scaling_rates[1: len(scaling_rates) - i][::-1])
+                Upscaler(embed_dim, scaling_rates[1 : len(scaling_rates) - i][::-1])
             )
 
     def forward(self, x, verbose=False):
@@ -484,7 +484,7 @@ def func():
 
 if __name__ == "__main__":
     x = [torch.randn(10, 20) for _ in range(10)]
-    mean_x = reduce(x, 'b n d -> n d', 'mean')
+    mean_x = reduce(x, "b n d -> n d", "mean")
     #  mean x
 
     # dist_2 = torch.sqrt(
